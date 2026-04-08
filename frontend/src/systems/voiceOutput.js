@@ -22,6 +22,9 @@ function stopSpeaking() {
 async function playAudioBuffer(response) {
   const arrayBuffer = await response.arrayBuffer();
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
   const decoded = await audioCtx.decodeAudioData(arrayBuffer);
   const source = audioCtx.createBufferSource();
   source.buffer = decoded;
@@ -42,24 +45,19 @@ async function playAudioBuffer(response) {
 export async function speak(text, mood, handlers = {}) {
   stopSpeaking();
 
-  try {
-    const result = await apiClient(
-      '/api/speak',
-      { method: 'POST', body: JSON.stringify({ text, mood }) },
-      handlers,
-    );
+  const result = await apiClient(
+    '/api/speak',
+    { method: 'POST', body: JSON.stringify({ text, mood }) },
+    handlers,
+  );
 
-    // apiClient returns the raw Response for non-JSON content types (audio/mpeg)
-    if (result && typeof result.arrayBuffer === 'function') {
-      const provider = result.headers?.get?.('X-Eevee-Voice-Provider');
-      if (provider) {
-        console.info(`[voice] provider=${provider}`);
-      }
-      return await playAudioBuffer(result);
+  if (result && typeof result.arrayBuffer === 'function') {
+    const provider = result.headers?.get?.('X-Eevee-Voice-Provider');
+    if (provider) {
+      console.info(`[voice] provider=${provider}`);
     }
-
-    console.warn('[voice] Unexpected response format from backend TTS api.');
-  } catch (error) {
-    console.error(`[voice] ElevenLabs TTS failed: ${error.message || error}`);
+    return await playAudioBuffer(result);
   }
+
+  throw new Error('Voice API returned a non-audio response.');
 }

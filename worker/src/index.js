@@ -437,7 +437,7 @@ async function sign(value, secret) {
 
 async function generateChatText(env, body, prompt) {
   if (!env.GEMINI_API_KEY) {
-    return buildFallbackChat(body.message);
+    throw Object.assign(new Error('Worker is missing GEMINI_API_KEY.'), { status: 503 });
   }
 
   const response = await fetch(
@@ -472,31 +472,22 @@ async function generateChatText(env, body, prompt) {
   );
 
   if (!response.ok) {
-    return buildFallbackChat(body.message);
+    let detail = 'Gemini request failed.';
+    try {
+      detail = (await response.text()).slice(0, 500) || detail;
+    } catch {}
+    throw Object.assign(new Error(detail), { status: 502 });
   }
 
   const data = await response.json();
   const text =
     data.candidates?.[0]?.content?.parts?.map((part) => part.text).join('\n').trim() || '';
 
-  return text || buildFallbackChat(body.message);
-}
+  if (!text) {
+    throw Object.assign(new Error('Gemini returned an empty response.'), { status: 502 });
+  }
 
-function buildFallbackChat(message = '') {
-  const lower = message.toLowerCase();
-  if (lower.includes('evolve')) {
-    return 'Vee! Eevee feels a sparkle of evolution coming on! [MOOD:excited]';
-  }
-  if (lower.includes('weather')) {
-    return 'Eevee can feel the weather on the breeze today. [MOOD:happy]';
-  }
-  if (lower.includes('goodnight') || lower.includes('sleep')) {
-    return 'Yawn... goodnight, Lili. Eevee will be right here when you wake me. [MOOD:sleepy]';
-  }
-  if (lower.includes('pokemon of the day')) {
-    return 'Today’s Pokémon is a special friend from the forest trail! [MOOD:happy]';
-  }
-  return 'Vee! Eevee is happy to chat with you in the forest clearing. [MOOD:happy]';
+  return text;
 }
 
 function extractMood(text = '') {

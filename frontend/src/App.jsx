@@ -284,26 +284,33 @@ export default function App() {
       return;
     }
 
-    setConvoState('thinking');
-    setMood('thinking');
-    setChatBubble('...');
-    const context = buildContext();
-    const result = await sendMessage({
-      message,
-      context,
-      history,
-      handlers: buildApiHandlers(),
-    });
-    setHistory((current) => [
-      ...current.slice(-19),
-      { role: 'user', content: message },
-      { role: 'assistant', content: result.text },
-    ]);
-    setPokemonOfTheDay(result.pokemonOfTheDay || pokemonOfTheDay);
-    setIsSpeaking(true);
-    triggerBubble(result.text, normalizeMood(result.text, result.mood), 'speaking');
-    await speak(result.text, result.mood, buildApiHandlers());
-    setIsSpeaking(false);
+    try {
+      setConvoState('thinking');
+      setMood('thinking');
+      setChatBubble('...');
+      const context = buildContext();
+      const result = await sendMessage({
+        message,
+        context,
+        history,
+        handlers: buildApiHandlers(),
+      });
+      setHistory((current) => [
+        ...current.slice(-19),
+        { role: 'user', content: message },
+        { role: 'assistant', content: result.text },
+      ]);
+      setPokemonOfTheDay(result.pokemonOfTheDay || pokemonOfTheDay);
+      setIsSpeaking(true);
+      triggerBubble(result.text, normalizeMood(result.text, result.mood), 'speaking');
+      await speak(result.text, result.mood, buildApiHandlers());
+    } catch (error) {
+      setMood('sad');
+      setConvoState('resting');
+      console.error('[conversation] request failed', error);
+    } finally {
+      setIsSpeaking(false);
+    }
   }
 
   async function handleTalk() {
