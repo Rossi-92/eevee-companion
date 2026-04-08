@@ -32,6 +32,10 @@ export default function WeatherEffects({ condition }) {
     return <div style={styles.layer}>{buildParticles(6, 'rgba(211, 226, 232, 0.9)', 38, 'fogDrift')}</div>;
   }
 
+  if (condition === 'snow') {
+    return <div style={styles.layer}>{buildParticles(28, 'rgba(230, 244, 255, 0.85)', 1, 'snowfall')}</div>;
+  }
+
   if (condition === 'sunny') {
     return (
       <div style={styles.layer}>

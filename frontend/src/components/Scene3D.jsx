@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { ANIMATION_MAP } from '../constants/animationMap.js';
 import { EEVEELUTIONS } from '../constants/eeveelutions.js';
 
 const REACTION_LINES = {
@@ -23,6 +24,10 @@ export default function Scene3D({
 
   useEffect(() => {
     moodRef.current = mood;
+    const s = sceneRef.current;
+    if (s?.mixer) {
+      s.mixer.timeScale = (ANIMATION_MAP[mood] || ANIMATION_MAP.idle).timeScale;
+    }
   }, [mood]);
 
   useEffect(() => {
@@ -78,6 +83,8 @@ export default function Scene3D({
       gltfCache: new Map(),
       currentForm,
       mood,
+      mixer: null,
+      currentAction: null,
     };
     sceneRef.current = state;
 
@@ -170,19 +177,31 @@ export default function Scene3D({
       const loader = new GLTFLoader();
       const cached = state.gltfCache.get(formName);
 
-      const useRig = (rig, clipNames = []) => {
+      const useRig = (rig, clips = []) => {
         if (state.currentRig) {
           scene.remove(state.currentRig);
+        }
+        if (state.mixer) {
+          state.mixer.stopAllAction();
+          state.mixer = null;
+          state.currentAction = null;
         }
         state.currentRig = rig;
         state.currentForm = formName;
         state.interactiveZones = rig.userData.interactiveZones || [];
         scene.add(rig);
-        console.log(`[Scene3D] ${formName} clips:`, clipNames.length ? clipNames : ['fallback-rig']);
+        console.log(`[Scene3D] ${formName} clips:`, clips.length ? clips.map((c) => c.name) : ['fallback-rig']);
+        const clip = clips.find((c) => c.name === 'Armature|ArmatureAction');
+        if (clip) {
+          const mixer = new THREE.AnimationMixer(rig);
+          mixer.timeScale = (ANIMATION_MAP[moodRef.current] || ANIMATION_MAP.idle).timeScale;
+          mixer.clipAction(clip).play();
+          state.mixer = mixer;
+        }
       };
 
       if (cached) {
-        useRig(cached.scene.clone(true), cached.animations.map((clip) => clip.name));
+        useRig(cached.scene.clone(true), cached.animations);
         return;
       }
 
@@ -198,8 +217,19 @@ export default function Scene3D({
         rig.scale.setScalar(1.8);
         rig.position.y = -1.15;
         rig.userData.parts = fallbackRig.userData.parts;
-        rig.userData.interactiveZones = fallbackRig.userData.interactiveZones;
-        useRig(rig, gltf.animations.map((clip) => clip.name));
+        // Clone hit zones and add them as children of the loaded rig so the
+        // raycaster can find them. Divide positions/scale by the rig's own
+        // scale (1.8) so they appear at the correct world-space size.
+        const INV = 1 / 1.8;
+        const zones = fallbackRig.userData.interactiveZones.map((zone) => {
+          const z = zone.clone();
+          z.position.multiplyScalar(INV);
+          z.scale.setScalar(INV);
+          rig.add(z);
+          return z;
+        });
+        rig.userData.interactiveZones = zones;
+        useRig(rig, gltf.animations);
       } catch {
         useRig(fallbackRig);
       }
@@ -221,8 +251,12 @@ export default function Scene3D({
       state.fill.intensity = fillIntensity;
     }
 
+    let rafId;
     function animate() {
-      const elapsed = state.clock.getElapsedTime();
+      rafId = requestAnimationFrame(animate);
+      const delta = state.clock.getDelta();
+      const elapsed = state.clock.elapsedTime;
+      state.mixer?.update(delta);
       const rig = state.currentRig;
       const parts = rig?.userData?.parts;
       const currentMood = moodRef.current;
@@ -287,8 +321,10 @@ export default function Scene3D({
     animate();
 
     return () => {
+      cancelAnimationFrame(rafId);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('resize', handleResize);
+      state.mixer?.stopAllAction();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
@@ -348,11 +384,23 @@ export default function Scene3D({
       if (sceneState.currentRig) {
         sceneState.scene.remove(sceneState.currentRig);
       }
+      if (sceneState.mixer) {
+        sceneState.mixer.stopAllAction();
+        sceneState.mixer = null;
+        sceneState.currentAction = null;
+      }
       sceneState.currentRig = rig;
       sceneState.currentForm = currentForm;
       sceneState.interactiveZones = rig.userData.interactiveZones || [];
       sceneState.scene.add(rig);
-      console.log(`[Scene3D] ${currentForm} clips:`, clips.length ? clips : ['fallback-rig']);
+      console.log(`[Scene3D] ${currentForm} clips:`, clips.length ? clips.map((c) => c.name) : ['fallback-rig']);
+      const clip = clips.find((c) => c.name === 'Armature|ArmatureAction');
+      if (clip) {
+        const mixer = new THREE.AnimationMixer(rig);
+        mixer.timeScale = (ANIMATION_MAP[moodRef.current] || ANIMATION_MAP.idle).timeScale;
+        mixer.clipAction(clip).play();
+        sceneState.mixer = mixer;
+      }
     };
 
     loader
@@ -362,8 +410,16 @@ export default function Scene3D({
         rig.scale.setScalar(1.8);
         rig.position.y = -1.15;
         rig.userData.parts = fallbackGroup.userData.parts;
-        rig.userData.interactiveZones = fallbackGroup.userData.interactiveZones;
-        useRig(rig, gltf.animations.map((clip) => clip.name));
+        const INV = 1 / 1.8;
+        const zones = fallbackGroup.userData.interactiveZones.map((zone) => {
+          const z = zone.clone();
+          z.position.multiplyScalar(INV);
+          z.scale.setScalar(INV);
+          rig.add(z);
+          return z;
+        });
+        rig.userData.interactiveZones = zones;
+        useRig(rig, gltf.animations);
       })
       .catch(() => {
         useRig(fallbackGroup);

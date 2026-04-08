@@ -88,6 +88,18 @@ button {
   }
 }
 
+@keyframes snowfall {
+  0% {
+    transform: translate3d(0, -20px, 0) rotate(0deg);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translate3d(-25px, 110vh, 0) rotate(180deg);
+    opacity: 0.4;
+  }
+}
+
 @keyframes floatParticle {
   0%,
   100% {

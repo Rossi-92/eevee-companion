@@ -10,6 +10,15 @@ export default function TrainerPIN({ onSubmit, isSubmitting, error }) {
     refs.current[0]?.focus();
   }, []);
 
+  // Clear digits and re-focus after a failed submission so the auto-submit
+  // effect doesn't fire again immediately with the same PIN.
+  useEffect(() => {
+    if (error) {
+      setDigits(['', '', '', '']);
+      refs.current[0]?.focus();
+    }
+  }, [error]);
+
   useEffect(() => {
     if (pin.length === 4 && !digits.includes('') && !isSubmitting) {
       onSubmit(pin).catch(() => {});

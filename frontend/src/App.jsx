@@ -349,7 +349,7 @@ export default function App() {
 
       <ClockWidget now={now} tone={timeState.widgetTone} />
       <WeatherWidget weather={weather} tone={timeState.widgetTone} />
-      <StatusPill mood={mood} state={convoState} tone={timeState.widgetTone} />
+      <StatusPill mood={mood} state={convoState} tone={timeState.widgetTone} name={EEVEELUTIONS[currentForm]?.name} />
       <SpeechBubble text={chatBubble} tone={timeState.widgetTone} />
       <PokemonBadge
         name={pokemonOfTheDay}

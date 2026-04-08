@@ -17,11 +17,22 @@ export function startListening() {
     recognition.lang = 'en-GB';
     recognition.continuous = false;
     recognition.interimResults = false;
+
+    // Timeout if browser never fires result or error (e.g. user dismisses mic prompt)
+    const timeout = setTimeout(() => {
+      try { recognition.stop(); } catch {}
+      reject('timeout');
+    }, 10000);
+
     recognition.onresult = (event) => {
+      clearTimeout(timeout);
       resolve(event.results[0][0].transcript);
       recognition.stop();
     };
-    recognition.onerror = (event) => reject(event.error || 'voice-input-failed');
+    recognition.onerror = (event) => {
+      clearTimeout(timeout);
+      reject(event.error || 'voice-input-failed');
+    };
     recognition.start();
   });
 }
@@ -37,30 +48,33 @@ export function startContinuousListening(onWakeWord) {
   recognition.lang = 'en-GB';
   recognition.continuous = true;
   recognition.interimResults = false;
+
   recognition.onresult = (event) => {
     const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
     if (/(^|\b)(hi eevee|hey eevee|eevee)(\b|$)/i.test(transcript)) {
       onWakeWord(transcript);
     }
   };
-  recognition.onerror = () => {
-    if (active) {
-      try {
-        recognition.stop();
-        recognition.start();
-      } catch {}
+
+  recognition.onerror = (event) => {
+    if (!active) return;
+    // Permission denied — stop permanently rather than looping
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      active = false;
     }
+    // onend fires after onerror and handles the restart
   };
 
-  try {
-    recognition.start();
-  } catch {}
+  // Chrome fires onend after silence periods — restart to keep listening
+  recognition.onend = () => {
+    if (!active) return;
+    try { recognition.start(); } catch {}
+  };
+
+  try { recognition.start(); } catch {}
 
   return () => {
     active = false;
-    try {
-      recognition.stop();
-    } catch {}
+    try { recognition.stop(); } catch {}
   };
 }
-

@@ -22,8 +22,11 @@ export async function sendMessage({
     );
 
     return {
-      text: stripMoodTag(result.text),
-      mood: normalizeMood(result.text, result.mood || 'happy'),
+      text: result.text,
+      // Worker already strips the MOOD tag before responding and returns it
+      // as a separate field — pass the bare mood string as both args so
+      // normalizeMood validates it against ALLOWED_MOODS and uses the fallback.
+      mood: normalizeMood(result.mood || '', result.mood || 'happy'),
       pokemonOfTheDay: result.pokemonOfTheDay || null,
     };
   } catch (error) {

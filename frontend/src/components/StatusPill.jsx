@@ -1,4 +1,4 @@
-export default function StatusPill({ mood, state, tone }) {
+export default function StatusPill({ mood, state, tone, name }) {
   return (
     <div
       style={{
@@ -18,7 +18,7 @@ export default function StatusPill({ mood, state, tone }) {
         letterSpacing: 0.3,
       }}
     >
-      Eevee is {state} • mood: {mood}
+      {name || 'Eevee'} is {state} • mood: {mood}
     </div>
   );
 }

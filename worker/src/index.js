@@ -12,7 +12,7 @@ const RATE_LIMITS = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const corsHeaders = buildCorsHeaders(request, env);
     if (!corsHeaders.allowed) {
       return json({ error: 'Origin not allowed.' }, 403);
@@ -42,7 +42,7 @@ export default {
       }
 
       if (url.pathname === '/api/chat' && request.method === 'POST') {
-        return withCors(await chat(request, env, auth.deviceId), corsHeaders.headers);
+        return withCors(await chat(request, env, ctx, auth.deviceId), corsHeaders.headers);
       }
 
       if (url.pathname === '/api/speak' && request.method === 'POST') {
@@ -104,6 +104,9 @@ async function verifyPin(request, env) {
 }
 
 async function registerDevice(request, env) {
+  const ip = request.headers.get('CF-Connecting-IP') || 'local';
+  await enforceRateLimit(env, `ratelimit:auth:${ip}`, RATE_LIMITS.auth);
+
   const body = await request.json();
   const pinValid = await isValidPin(body.pin, env);
 
@@ -121,7 +124,7 @@ async function registerDevice(request, env) {
   return json({ token, expiresIn: 86400, registered: true });
 }
 
-async function chat(request, env, deviceId) {
+async function chat(request, env, ctx, deviceId) {
   await enforceRateLimit(env, `ratelimit:chat:${deviceId}`, RATE_LIMITS.chat);
 
   const body = await request.json();
@@ -132,17 +135,30 @@ async function chat(request, env, deviceId) {
   const mood = extractMood(text);
   const cleanText = text.replace(/\s*\[MOOD:[^\]]+\]\s*$/i, '').trim();
 
+  const logKey = `log:${new Date().toISOString()}`;
   await env.EEVEE_KV?.put(
-    `log:${new Date().toISOString()}`,
-    JSON.stringify({
-      user: body.message,
-      eevee: cleanText,
-      mood,
-      prompt,
-    }),
+    logKey,
+    JSON.stringify({ user: body.message, eevee: cleanText, mood }),
+    { expirationTtl: 30 * 24 * 3600 },
   );
 
-  return json({ text: cleanText, mood, pokemonOfTheDay, promptPreview: prompt });
+  // Every 10 exchanges, summarise and update long-term memory asynchronously
+  const counterKey = `memcounter:${deviceId}`;
+  const counter = (await env.EEVEE_KV?.get(counterKey, 'json')) || { count: 0 };
+  const newCount = counter.count + 1;
+
+  if (newCount >= 10) {
+    // Reset counter and update memory together — counter only resets if memory write succeeds
+    ctx.waitUntil(
+      updateMemory(env, body.message, cleanText).then(() =>
+        env.EEVEE_KV?.put(counterKey, JSON.stringify({ count: 0 })),
+      ),
+    );
+  } else {
+    await env.EEVEE_KV?.put(counterKey, JSON.stringify({ count: newCount }));
+  }
+
+  return json({ text: cleanText, mood, pokemonOfTheDay });
 }
 
 async function speak(request, env, deviceId) {
@@ -304,6 +320,38 @@ async function enforceRateLimit(env, key, config) {
   );
 }
 
+async function updateMemory(env, userMsg, eeveeMsg) {
+  if (!env.GEMINI_API_KEY) return;
+
+  const currentMemory = (await env.EEVEE_KV?.get('memory:latest')) || '';
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [{
+            text: `Extract any personal facts Lilianna shared in this exchange in 1-2 bullet points. Only include concrete facts (names, events, preferences, feelings). If nothing notable, respond with exactly: NONE\n\nLilianna: ${userMsg}\nEevee: ${eeveeMsg}`,
+          }],
+        }],
+        generationConfig: { maxOutputTokens: 80, temperature: 0.1 },
+      }),
+    },
+  );
+
+  if (!response.ok) return;
+  const data = await response.json();
+  const summary = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join('').trim() || '';
+
+  if (!summary || summary.toUpperCase() === 'NONE') return;
+
+  // Append to memory, keep most recent 500 chars
+  const updated = `${currentMemory}\n${summary}`.trim();
+  await env.EEVEE_KV?.put('memory:latest', updated.length > 500 ? updated.slice(-500) : updated);
+}
+
 function buildContextBlock(context = {}, memory = '', pokemonOfTheDay) {
   return [
     '[CONTEXT]',
@@ -353,10 +401,14 @@ function withCors(response, headers) {
   });
 }
 
+function base64url(str) {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 async function signToken(payload, secret) {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const exp = Math.floor(Date.now() / 1000) + 86400;
-  const body = btoa(JSON.stringify({ ...payload, exp }));
+  const body = base64url(JSON.stringify({ ...payload, exp }));
   const signature = await sign(`${header}.${body}`, secret);
   return `${header}.${body}.${signature}`;
 }
@@ -372,7 +424,11 @@ async function verifyToken(token, secret) {
     return null;
   }
 
-  const payload = JSON.parse(atob(body));
+  // Restore standard base64 padding for atob
+  const padded = body.replace(/-/g, '+').replace(/_/g, '/').padEnd(
+    body.length + (4 - (body.length % 4)) % 4, '='
+  );
+  const payload = JSON.parse(atob(padded));
   if (payload.exp * 1000 < Date.now()) {
     return null;
   }
