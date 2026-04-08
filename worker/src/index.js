@@ -165,41 +165,56 @@ async function speak(request, env, deviceId) {
   await enforceRateLimit(env, `ratelimit:speak:${deviceId}`, RATE_LIMITS.speak);
   const body = await request.json();
 
-  if (env.ELEVENLABS_API_KEY && env.ELEVENLABS_VOICE_ID) {
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': env.ELEVENLABS_API_KEY,
-        },
-        body: JSON.stringify({
-          text: body.text,
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: getVoiceSettings(body.mood),
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error('ElevenLabs request failed.');
-    }
-
-    return new Response(response.body, {
-      status: 200,
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Cache-Control': 'no-store',
-      },
+  if (!env.ELEVENLABS_API_KEY || !env.ELEVENLABS_VOICE_ID) {
+    return json({
+      ok: false,
+      provider: 'browser-fallback',
+      reason: 'missing_worker_secret',
+      message: 'Worker is missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID.',
     });
   }
 
-  return json({
-    ok: true,
-    text: body.text,
-    mood: body.mood || 'idle',
-    message: 'ElevenLabs streaming proxy is scaffolded and ready for live secret wiring.',
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': env.ELEVENLABS_API_KEY,
+      },
+      body: JSON.stringify({
+        text: body.text,
+        model_id: 'eleven_turbo_v2_5',
+        voice_settings: getVoiceSettings(body.mood),
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    let detail = 'Unknown ElevenLabs error.';
+    try {
+      detail = await response.text();
+    } catch {}
+
+    return json(
+      {
+        ok: false,
+        provider: 'browser-fallback',
+        reason: 'elevenlabs_request_failed',
+        status: response.status,
+        message: detail.slice(0, 500),
+      },
+      502,
+    );
+  }
+
+  return new Response(response.body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'audio/mpeg',
+      'Cache-Control': 'no-store',
+      'X-Eevee-Voice-Provider': 'elevenlabs',
+    },
   });
 }
 

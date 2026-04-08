@@ -68,12 +68,20 @@ export async function speak(text, mood, handlers = {}) {
 
     // apiClient returns the raw Response for non-JSON content types (audio/mpeg)
     if (result && typeof result.arrayBuffer === 'function') {
+      const provider = result.headers?.get?.('X-Eevee-Voice-Provider');
+      if (provider) {
+        console.info(`[voice] provider=${provider}`);
+      }
       return await playAudioBuffer(result);
     }
 
-    // Worker returned JSON — ElevenLabs not configured, fall through to browser TTS
-  } catch {
-    // Network/API error — fall through to browser TTS
+    if (result?.provider || result?.reason || result?.message) {
+      console.warn(
+        `[voice] Falling back to browser TTS: provider=${result.provider || 'unknown'} reason=${result.reason || 'unknown'} message=${result.message || 'none'}`,
+      );
+    }
+  } catch (error) {
+    console.warn(`[voice] Falling back to browser TTS after API error: ${error.message || error}`);
   }
 
   return browserSpeak(text, mood);
