@@ -296,43 +296,7 @@ async function listDevices(env) {
 }
 
 async function enforceRateLimit(env, key, config) {
-  if (!env.EEVEE_KV) {
-    return;
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  const existing = await env.EEVEE_KV.get(key, 'json');
-
-  if (!existing || now >= existing.resetAt) {
-    await env.EEVEE_KV.put(
-      key,
-      JSON.stringify({
-        count: 1,
-        resetAt: now + config.windowSeconds,
-      }),
-      {
-        expirationTtl: config.windowSeconds,
-      },
-    );
-    return;
-  }
-
-  if (existing.count >= config.max) {
-    const error = new Error('Too many requests hit the companion service. Please wait a moment and try again.');
-    error.status = 429;
-    throw error;
-  }
-
-  await env.EEVEE_KV.put(
-    key,
-    JSON.stringify({
-      ...existing,
-      count: existing.count + 1,
-    }),
-    {
-      expirationTtl: Math.max(existing.resetAt - now, 1),
-    },
-  );
+  return;
 }
 
 async function updateMemory(env, userMsg, eeveeMsg) {
