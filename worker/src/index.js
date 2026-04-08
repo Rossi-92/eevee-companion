@@ -11,7 +11,7 @@ const RATE_LIMITS = {
   weather: { max: 240, windowSeconds: 3600 },
 };
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 export default {
   async fetch(request, env, ctx) {
@@ -306,22 +306,15 @@ async function updateMemory(env, userMsg, eeveeMsg) {
   if (!env.GEMINI_API_KEY) return;
 
   const currentMemory = (await env.EEVEE_KV?.get('memory:latest')) || '';
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          role: 'user',
-          parts: [{
-            text: `Extract any personal facts Lilianna shared in this exchange in 1-2 bullet points. Only include concrete facts (names, events, preferences, feelings). If nothing notable, respond with exactly: NONE\n\nLilianna: ${userMsg}\nEevee: ${eeveeMsg}`,
-          }],
-        }],
-        generationConfig: { maxOutputTokens: 80, temperature: 0.1 },
-      }),
-    },
-  );
+  const response = await fetchGeminiWithFallback(env, {
+    contents: [{
+      role: 'user',
+      parts: [{
+        text: `Extract any personal facts Lilianna shared in this exchange in 1-2 bullet points. Only include concrete facts (names, events, preferences, feelings). If nothing notable, respond with exactly: NONE\n\nLilianna: ${userMsg}\nEevee: ${eeveeMsg}`,
+      }],
+    }],
+    generationConfig: { maxOutputTokens: 80, temperature: 0.1 },
+  });
 
   if (!response.ok) return;
   const data = await response.json();
@@ -451,43 +444,30 @@ async function generateChatTurn(env, body, prompt) {
     throw Object.assign(new Error('No message content was provided.'), { status: 400 });
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
-        },
-        contents: [
-          ...(body.history || []).map((entry) => ({
-            role: entry.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: entry.content }],
-          })),
-          {
-            role: 'user',
-            parts: [{ text: `${prompt}\n\n${body.message}` }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.75,
-          topP: 0.92,
-          topK: 40,
-          maxOutputTokens: 140,
-        },
-      }),
+  const response = await fetchGeminiWithFallback(env, {
+    systemInstruction: {
+      parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
     },
-  );
+    contents: [
+      ...(body.history || []).map((entry) => ({
+        role: entry.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: entry.content }],
+      })),
+      {
+        role: 'user',
+        parts: [{ text: `${prompt}\n\n${body.message}` }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.75,
+      topP: 0.92,
+      topK: 40,
+      maxOutputTokens: 140,
+    },
+  });
 
   if (!response.ok) {
-    let detail = 'Gemini request failed.';
-    try {
-      detail = (await response.text()).slice(0, 500) || detail;
-    } catch {}
-    throw Object.assign(new Error(detail), { status: 502 });
+    throw await buildGeminiError(response, 'Gemini request failed.');
   }
 
   const data = await response.json();
@@ -502,27 +482,20 @@ async function generateChatTurn(env, body, prompt) {
 }
 
 async function generateChatTurnFromAudio(env, body, prompt) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
-        },
-        contents: [
-          ...(body.history || []).map((entry) => ({
-            role: entry.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: entry.content }],
-          })),
+  const response = await fetchGeminiWithFallback(env, {
+    systemInstruction: {
+      parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
+    },
+    contents: [
+      ...(body.history || []).map((entry) => ({
+        role: entry.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: entry.content }],
+      })),
+      {
+        role: 'user',
+        parts: [
           {
-            role: 'user',
-            parts: [
-              {
-                text: `${prompt}
+            text: `${prompt}
 
 Listen to the attached audio from Lilianna.
 1. Work out what she said.
@@ -533,33 +506,27 @@ Return valid JSON only with keys:
 - transcript
 - reply
 - mood`,
-              },
-              {
-                inlineData: {
-                  mimeType: body.audio.mimeType || 'audio/wav',
-                  data: body.audio.data,
-                },
-              },
-            ],
+          },
+          {
+            inlineData: {
+              mimeType: body.audio.mimeType || 'audio/wav',
+              data: body.audio.data,
+            },
           },
         ],
-        generationConfig: {
-          temperature: 0.75,
-          topP: 0.92,
-          topK: 40,
-          maxOutputTokens: 220,
-          responseMimeType: 'application/json',
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      temperature: 0.75,
+      topP: 0.92,
+      topK: 40,
+      maxOutputTokens: 220,
+      responseMimeType: 'application/json',
     },
-  );
+  });
 
   if (!response.ok) {
-    let detail = 'Gemini audio request failed.';
-    try {
-      detail = (await response.text()).slice(0, 500) || detail;
-    } catch {}
-    throw Object.assign(new Error(detail), { status: 502 });
+    throw await buildGeminiError(response, 'Gemini audio request failed.');
   }
 
   const data = await response.json();
@@ -594,6 +561,56 @@ Return valid JSON only with keys:
     text,
     mood,
   };
+}
+
+async function fetchGeminiWithFallback(env, payload) {
+  let lastResponse = null;
+
+  for (const model of GEMINI_MODELS) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    if (response.ok) {
+      return response;
+    }
+
+    const shouldRetry =
+      model !== GEMINI_MODELS[GEMINI_MODELS.length - 1] &&
+      (response.status === 429 || response.status === 500 || response.status === 503);
+
+    if (!shouldRetry) {
+      return response;
+    }
+
+    lastResponse = response;
+  }
+
+  return lastResponse;
+}
+
+async function buildGeminiError(response, fallbackMessage) {
+  let detail = fallbackMessage;
+  let status = 502;
+
+  try {
+    const raw = (await response.text()).slice(0, 500);
+    if (raw) {
+      detail = raw;
+      if (/UNAVAILABLE|high demand|temporar/i.test(raw)) {
+        status = 503;
+      }
+    }
+  } catch {}
+
+  return Object.assign(new Error(detail), { status });
 }
 
 function extractMood(text = '') {
