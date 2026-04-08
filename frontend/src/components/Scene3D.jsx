@@ -5,7 +5,7 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { ANIMATION_MAP } from '../constants/animationMap.js';
 import { EEVEELUTIONS } from '../constants/eeveelutions.js';
 
-const MODEL_SCALE = 4.8;
+const MODEL_SCALE = 4.0;
 const FLOOR_Y = -1.25;
 
 const REACTION_LINES = {
@@ -140,10 +140,10 @@ function frameRig(rig, camera) {
   const fov = THREE.MathUtils.degToRad(camera.fov);
   const distanceForHeight = safeHeight / (2 * Math.tan(fov / 2));
   const distanceForWidth = safeWidth / (2 * Math.tan(fov / 2)) / camera.aspect;
-  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.05;
+  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.18;
 
-  camera.position.set(center.x, center.y + safeHeight * 0.2, center.z + distance);
-  camera.lookAt(center.x, center.y + safeHeight * 0.18, center.z);
+  camera.position.set(center.x, center.y + safeHeight * 0.17, center.z + distance);
+  camera.lookAt(center.x, center.y + safeHeight * 0.15, center.z);
   camera.updateProjectionMatrix();
 }
 
@@ -345,7 +345,7 @@ export default function Scene3D({
       const sleeping = sleepingRef.current;
 
       if (rig) {
-        rig.position.y = (rig.userData.baseY ?? -0.15) + Math.sin(elapsed * 1.1) * (sleeping ? 0.02 : 0.05);
+        rig.position.y = (rig.userData.baseY ?? -0.15) + Math.sin(elapsed * 1.1) * (sleeping ? 0.015 : 0.032);
         rig.rotation.y = Math.sin(elapsed / 7) * 0.12;
       }
 
@@ -451,10 +451,10 @@ const styles = {
   canvas: {
     position: 'absolute',
     left: '50%',
-    bottom: 24,
+    bottom: 8,
     transform: 'translateX(-50%)',
     width: 'min(1080px, 82vw)',
-    height: 'min(760px, 72vh)',
+    height: 'min(820px, 78vh)',
     zIndex: 5,
     pointerEvents: 'auto',
   },
