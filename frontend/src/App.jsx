@@ -13,7 +13,7 @@ import { audioManager } from './utils/audioManager.js';
 import { normalizeMood } from './systems/moodEngine.js';
 import { createSleepManager } from './systems/sleepManager.js';
 import { getTimeOfDayState } from './systems/timeOfDay.js';
-import { startContinuousListening, startListening, isVoiceInputSupported } from './systems/voiceInput.js';
+import { startListening, isVoiceInputSupported } from './systems/voiceInput.js';
 import { speak } from './systems/voiceOutput.js';
 import { fetchWeather } from './systems/weatherService.js';
 import { acquireWakeLock, releaseWakeLock } from './utils/wakeLock.js';
@@ -115,23 +115,6 @@ export default function App() {
       getCurrentForm: () => formRef.current,
     });
     sleepManagerRef.current.poke();
-
-    stopWakeWordRef.current = startContinuousListening((transcript) => {
-      if (sleepingRef.current) {
-        handleWake();
-        return;
-      }
-
-      if (speakingRef.current || !authRef.current) {
-        return;
-      }
-
-      const cleaned = transcript
-        .replace(/(^|\b)(hi eevee|hey eevee|eevee)[,\s:]*/i, '')
-        .trim();
-
-      void runConversation(cleaned || 'Hello Eevee');
-    });
 
     weatherTimer = window.setInterval(async () => {
       setWeather(await fetchWeather(buildApiHandlers()));

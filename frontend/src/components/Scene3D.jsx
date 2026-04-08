@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { ANIMATION_MAP } from '../constants/animationMap.js';
 import { EEVEELUTIONS } from '../constants/eeveelutions.js';
 
-const MODEL_SCALE = 2.9;
+const MODEL_SCALE = 4.8;
 const FLOOR_Y = -1.25;
 
 const REACTION_LINES = {
@@ -98,24 +99,56 @@ function buildFallbackRig(formName) {
   return rig;
 }
 
+function getVisibleBounds(object) {
+  const box = new THREE.Box3();
+  let hasMesh = false;
+
+  object.updateMatrixWorld(true);
+  object.traverse((child) => {
+    if (!child.isMesh && !child.isSkinnedMesh) {
+      return;
+    }
+
+    const geometry = child.geometry;
+    if (!geometry) {
+      return;
+    }
+
+    if (!geometry.boundingBox) {
+      geometry.computeBoundingBox();
+    }
+
+    if (!geometry.boundingBox) {
+      return;
+    }
+
+    const childBox = geometry.boundingBox.clone();
+    childBox.applyMatrix4(child.matrixWorld);
+    box.union(childBox);
+    hasMesh = true;
+  });
+
+  return hasMesh ? box : new THREE.Box3().setFromObject(object);
+}
+
 function frameRig(rig, camera) {
-  const box = new THREE.Box3().setFromObject(rig);
+  const box = getVisibleBounds(rig);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  const safeHeight = Math.max(size.y, 1.5);
-  const safeWidth = Math.max(size.x, 1.2);
+  const safeHeight = Math.max(size.y, 1.2);
+  const safeWidth = Math.max(size.x, 1.0);
   const fov = THREE.MathUtils.degToRad(camera.fov);
   const distanceForHeight = safeHeight / (2 * Math.tan(fov / 2));
   const distanceForWidth = safeWidth / (2 * Math.tan(fov / 2)) / camera.aspect;
-  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.45;
+  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.05;
 
-  camera.position.set(center.x, center.y + safeHeight * 0.1, center.z + distance);
-  camera.lookAt(center.x, center.y + safeHeight * 0.08, center.z);
+  camera.position.set(center.x, center.y + safeHeight * 0.2, center.z + distance);
+  camera.lookAt(center.x, center.y + safeHeight * 0.18, center.z);
   camera.updateProjectionMatrix();
 }
 
 function placeRigOnStage(rig) {
-  const box = new THREE.Box3().setFromObject(rig);
+  const box = getVisibleBounds(rig);
   const center = box.getCenter(new THREE.Vector3());
   const min = box.min.clone();
   rig.position.x -= center.x;
@@ -164,23 +197,23 @@ export default function Scene3D({
     const camera = new THREE.PerspectiveCamera(38, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(0, 1.5, 5.8);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 1.6);
-    const directional = new THREE.DirectionalLight(0xfff1cc, 1.7);
-    directional.position.set(4, 8, 5);
-    const fill = new THREE.DirectionalLight(0x8db8ff, 0.9);
-    fill.position.set(-4, 3, -1);
+    const ambient = new THREE.AmbientLight(0xffffff, 1.35);
+    const directional = new THREE.DirectionalLight(0xfff1cc, 1.45);
+    directional.position.set(2.2, 5.5, 4.6);
+    const fill = new THREE.DirectionalLight(0x8db8ff, 0.45);
+    fill.position.set(-2.5, 2.3, 1.2);
     scene.add(ambient, directional, fill);
 
     const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(2.8, 64),
+      new THREE.CircleGeometry(1, 64),
       new THREE.MeshBasicMaterial({
-        color: 0x3b2a1d,
+        color: 0x120c0a,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.22,
       }),
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = FLOOR_Y;
+    ground.position.y = FLOOR_Y + 0.01;
     scene.add(ground);
 
     const raycaster = new THREE.Raycaster();
@@ -201,6 +234,7 @@ export default function Scene3D({
       mixer: null,
       currentAction: null,
       loader: new GLTFLoader(),
+      ground,
     };
     sceneRef.current = state;
 
@@ -222,6 +256,16 @@ export default function Scene3D({
         state.currentForm = formName;
         state.interactiveZones = rig.userData.interactiveZones || [];
         scene.add(rig);
+        const rigBounds = getVisibleBounds(rig);
+        const rigSize = rigBounds.getSize(new THREE.Vector3());
+        const rigCenter = rigBounds.getCenter(new THREE.Vector3());
+        state.ground.position.x = rigCenter.x;
+        state.ground.position.z = rigCenter.z;
+        state.ground.scale.set(
+          Math.max(rigSize.x * 0.38, 0.72),
+          Math.max(rigSize.z * 0.32, 0.58),
+          1,
+        );
         frameRig(rig, camera);
         console.log(`[Scene3D] ${formName} clips:`, clips.length ? clips.map((c) => c.name) : ['fallback-rig']);
         const preferredName = (ANIMATION_MAP[moodRef.current] || ANIMATION_MAP.idle).clip;
@@ -236,7 +280,7 @@ export default function Scene3D({
       };
 
       if (cached) {
-        useRig(cached.scene.clone(true), cached.animations);
+        useRig(cloneSkeleton(cached.scene), cached.animations);
         return;
       }
 
@@ -248,7 +292,7 @@ export default function Scene3D({
       try {
         const gltf = await state.loader.loadAsync(modelPath);
         state.gltfCache.set(formName, gltf);
-        const rig = gltf.scene.clone(true);
+        const rig = cloneSkeleton(gltf.scene);
         rig.scale.setScalar(MODEL_SCALE);
         placeRigOnStage(rig);
         rig.userData.parts = null;

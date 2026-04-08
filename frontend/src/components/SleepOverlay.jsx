@@ -17,8 +17,7 @@ export default function SleepOverlay({ visible, onWake }) {
         fontSize: 28,
       }}
     >
-      Tap the screen or say “Hi Eevee” to wake your companion.
+      Tap the screen to wake your companion.
     </button>
   );
 }
-
