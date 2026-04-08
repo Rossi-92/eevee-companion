@@ -280,7 +280,6 @@ export default function Scene3D({
       camera.position.x = Math.sin(elapsed / 7) * 0.12;
       camera.lookAt(0, 0.35, 0);
       renderer.render(scene, camera);
-      requestAnimationFrame(animate);
     }
 
     function onPointerDown(event) {

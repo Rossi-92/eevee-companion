@@ -86,11 +86,25 @@ export default function App() {
   }, [currentForm]);
 
   useEffect(() => {
-    const loadingTimer = window.setTimeout(() => setIsLoading(false), 1400);
+    const loadingTimer = window.setTimeout(() => setIsLoading(false), 120);
+
+    return () => {
+      window.clearTimeout(loadingTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      stopWakeWordRef.current?.();
+      stopWakeWordRef.current = () => {};
+      sleepManagerRef.current?.stop();
+      sleepManagerRef.current = null;
+      releaseWakeLock();
+      return;
+    }
+
+    let weatherTimer;
     const clockTimer = window.setInterval(() => setNow(new Date()), 1000);
-    const weatherTimer = window.setInterval(async () => {
-      setWeather(await fetchWeather(buildApiHandlers()));
-    }, 30 * 60 * 1000);
 
     audioManager.preloadAll();
     acquireWakeLock();
@@ -113,6 +127,10 @@ export default function App() {
         handleWake();
       }
     });
+
+    weatherTimer = window.setInterval(async () => {
+      setWeather(await fetchWeather(buildApiHandlers()));
+    }, 30 * 60 * 1000);
 
     function onVisibilityChange() {
       if (document.visibilityState === 'visible' && !sleepingRef.current) {
@@ -148,19 +166,22 @@ export default function App() {
 
     if (!('FaceDetector' in window)) {
       setFaceTrackingNote('Local face tracking is not available in this browser, so Eevee uses gentle idle glances instead.');
+    } else {
+      setFaceTrackingNote('');
     }
 
     return () => {
-      window.clearTimeout(loadingTimer);
       window.clearInterval(clockTimer);
       window.clearInterval(weatherTimer);
       stopWakeWordRef.current?.();
+      stopWakeWordRef.current = () => {};
       sleepManagerRef.current?.stop();
+      sleepManagerRef.current = null;
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('devicemotion', onDeviceMotion);
       releaseWakeLock();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   function buildApiHandlers() {
     return {
@@ -329,46 +350,52 @@ export default function App() {
     await runConversation('Tell me about the Pokémon of the Day');
   }
 
+  const showCompanion = isAuthenticated && !isLoading;
+
   return (
     <div style={styles.app}>
       <Background timeState={timeState} />
-      <WeatherEffects condition={weather.condition} />
-      <EvolutionParticles
-        effect={EEVEELUTIONS[currentForm]?.particleEffect}
-        themeColor={EEVEELUTIONS[currentForm]?.themeColor}
-      />
-      <div style={{ ...styles.ambientTint, background: ambientTint }} />
-      <div style={styles.stageGlow} />
-      <Scene3D
-        mood={mood}
-        currentForm={currentForm}
-        timePhase={timeState.phase}
-        isSleeping={isSleeping}
-        onReaction={handleReaction}
-      />
+      {showCompanion ? <ClockWidget now={now} tone={timeState.widgetTone} /> : null}
+      {showCompanion ? (
+        <>
+          <WeatherEffects condition={weather.condition} />
+          <EvolutionParticles
+            effect={EEVEELUTIONS[currentForm]?.particleEffect}
+            themeColor={EEVEELUTIONS[currentForm]?.themeColor}
+          />
+          <div style={{ ...styles.ambientTint, background: ambientTint }} />
+          <div style={styles.stageGlow} />
+          <Scene3D
+            mood={mood}
+            currentForm={currentForm}
+            timePhase={timeState.phase}
+            isSleeping={isSleeping}
+            onReaction={handleReaction}
+          />
 
-      <ClockWidget now={now} tone={timeState.widgetTone} />
-      <WeatherWidget weather={weather} tone={timeState.widgetTone} />
-      <StatusPill mood={mood} state={convoState} tone={timeState.widgetTone} name={EEVEELUTIONS[currentForm]?.name} />
-      <SpeechBubble text={chatBubble} tone={timeState.widgetTone} />
-      <PokemonBadge
-        name={pokemonOfTheDay}
-        visible={pokemonBadgeVisible}
-        onClick={handlePokemonBadge}
-        tone={timeState.widgetTone}
-      />
+          <WeatherWidget weather={weather} tone={timeState.widgetTone} />
+          <StatusPill mood={mood} state={convoState} tone={timeState.widgetTone} name={EEVEELUTIONS[currentForm]?.name} />
+          <SpeechBubble text={chatBubble} tone={timeState.widgetTone} />
+          <PokemonBadge
+            name={pokemonOfTheDay}
+            visible={pokemonBadgeVisible}
+            onClick={handlePokemonBadge}
+            tone={timeState.widgetTone}
+          />
 
-      <Controls
-        onTalk={handleTalk}
-        onPet={handlePet}
-        onSleep={handleSleep}
-        onEvolve={() => handleEvolution()}
-        disabled={isSleeping || !isAuthenticated}
-        talkLabel={voiceSupported ? 'Talk' : 'Chat'}
-      />
+          <Controls
+            onTalk={handleTalk}
+            onPet={handlePet}
+            onSleep={handleSleep}
+            onEvolve={() => handleEvolution()}
+            disabled={isSleeping || !isAuthenticated}
+            talkLabel={voiceSupported ? 'Talk' : 'Chat'}
+          />
 
-      {faceTrackingNote ? <div style={styles.note}>{faceTrackingNote}</div> : null}
-      {evolutionFlash ? <div style={styles.flash} /> : null}
+          {faceTrackingNote ? <div style={styles.note}>{faceTrackingNote}</div> : null}
+          {evolutionFlash ? <div style={styles.flash} /> : null}
+        </>
+      ) : null}
 
       {isLoading && <LoadingScreen />}
       {!isAuthenticated && !isLoading && (

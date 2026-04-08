@@ -1,8 +1,18 @@
+import eeveeModel from '../../assets/models/eevee.glb?url';
+import vaporeonModel from '../../assets/models/vaporeon.glb?url';
+import jolteonModel from '../../assets/models/jolteon.glb?url';
+import flareonModel from '../../assets/models/flareon.glb?url';
+import espeonModel from '../../assets/models/espeon.glb?url';
+import umbreonModel from '../../assets/models/umbreon.glb?url';
+import leafeonModel from '../../assets/models/leafeon.glb?url';
+import glaceonModel from '../../assets/models/glaceon.glb?url';
+import sylveonModel from '../../assets/models/sylveon.glb?url';
+
 export const EEVEELUTIONS = {
   eevee: {
     name: 'Eevee',
     type: 'Normal',
-    model: '/assets/models/eevee.glb',
+    model: eeveeModel,
     themeColor: '#c8894d',
     particleEffect: null,
     ambientTint: 'transparent',
@@ -17,7 +27,7 @@ export const EEVEELUTIONS = {
   vaporeon: {
     name: 'Vaporeon',
     type: 'Water',
-    model: '/assets/models/vaporeon.glb',
+    model: vaporeonModel,
     themeColor: '#6390F0',
     particleEffect: 'bubbles',
     ambientTint: 'rgba(50,100,200,0.06)',
@@ -28,7 +38,7 @@ export const EEVEELUTIONS = {
   jolteon: {
     name: 'Jolteon',
     type: 'Electric',
-    model: '/assets/models/jolteon.glb',
+    model: jolteonModel,
     themeColor: '#F7D02C',
     particleEffect: 'sparks',
     ambientTint: 'rgba(200,180,50,0.05)',
@@ -39,7 +49,7 @@ export const EEVEELUTIONS = {
   flareon: {
     name: 'Flareon',
     type: 'Fire',
-    model: '/assets/models/flareon.glb',
+    model: flareonModel,
     themeColor: '#EE8130',
     particleEffect: 'embers',
     ambientTint: 'rgba(200,100,30,0.05)',
@@ -50,7 +60,7 @@ export const EEVEELUTIONS = {
   espeon: {
     name: 'Espeon',
     type: 'Psychic',
-    model: '/assets/models/espeon.glb',
+    model: espeonModel,
     themeColor: '#F95587',
     particleEffect: 'psychicOrbs',
     ambientTint: 'rgba(180,80,150,0.04)',
@@ -61,7 +71,7 @@ export const EEVEELUTIONS = {
   umbreon: {
     name: 'Umbreon',
     type: 'Dark',
-    model: '/assets/models/umbreon.glb',
+    model: umbreonModel,
     themeColor: '#705746',
     particleEffect: 'moonGlow',
     ambientTint: 'rgba(40,40,80,0.06)',
@@ -72,7 +82,7 @@ export const EEVEELUTIONS = {
   leafeon: {
     name: 'Leafeon',
     type: 'Grass',
-    model: '/assets/models/leafeon.glb',
+    model: leafeonModel,
     themeColor: '#7AC74C',
     particleEffect: 'leaves',
     ambientTint: 'rgba(80,160,50,0.05)',
@@ -83,7 +93,7 @@ export const EEVEELUTIONS = {
   glaceon: {
     name: 'Glaceon',
     type: 'Ice',
-    model: '/assets/models/glaceon.glb',
+    model: glaceonModel,
     themeColor: '#96D9D6',
     particleEffect: 'snowflakes',
     ambientTint: 'rgba(100,180,200,0.05)',
@@ -94,7 +104,7 @@ export const EEVEELUTIONS = {
   sylveon: {
     name: 'Sylveon',
     type: 'Fairy',
-    model: '/assets/models/sylveon.glb',
+    model: sylveonModel,
     themeColor: '#D685AD',
     particleEffect: 'hearts',
     ambientTint: 'rgba(200,120,170,0.05)',
@@ -105,4 +115,3 @@ export const EEVEELUTIONS = {
 };
 
 export const EVOLUTION_NAMES = Object.keys(EEVEELUTIONS).filter((name) => name !== 'eevee');
-
