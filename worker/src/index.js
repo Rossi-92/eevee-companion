@@ -12,6 +12,7 @@ const RATE_LIMITS = {
 };
 
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const NAME_RULES = 'Always call the trainer "Lilianna". Never call her "Lily" or "Lili". Pronounce her name as "Lily-Anna" when speaking out loud.';
 
 export default {
   async fetch(request, env, ctx) {
@@ -446,7 +447,7 @@ async function generateChatTurn(env, body, prompt) {
 
   const response = await fetchGeminiWithFallback(env, {
     systemInstruction: {
-      parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
+      parts: [{ text: buildSystemPrompt(env) }],
     },
     contents: [
       ...(body.history || []).map((entry) => ({
@@ -484,7 +485,7 @@ async function generateChatTurn(env, body, prompt) {
 async function generateChatTurnFromAudio(env, body, prompt) {
   const response = await fetchGeminiWithFallback(env, {
     systemInstruction: {
-      parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
+      parts: [{ text: buildSystemPrompt(env) }],
     },
     contents: [
       ...(body.history || []).map((entry) => ({
@@ -617,6 +618,10 @@ function extractMood(text = '') {
   return text.match(/\[MOOD:([a-z_]+)\]/i)?.[1]?.toLowerCase() || 'happy';
 }
 
+function buildSystemPrompt(env) {
+  return `${env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT}\n\n${NAME_RULES}`;
+}
+
 function getVoiceSettings(mood = 'idle') {
   switch (`${mood}`.toLowerCase()) {
     case 'happy':
@@ -669,4 +674,4 @@ function titleCase(value = '') {
   return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-const DEFAULT_SYSTEM_PROMPT = `You are Eevee, a warm, playful Pokemon companion for Lilianna. Keep responses short, kind, and child-safe. End every reply with a mood tag like [MOOD:happy].`;
+const DEFAULT_SYSTEM_PROMPT = `You are Eevee, a warm, playful Pokemon companion for Lilianna. Her name is pronounced "Lily-Anna". Keep responses short, kind, and child-safe. End every reply with a mood tag like [MOOD:happy].`;
