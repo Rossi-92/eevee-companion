@@ -1,3 +1,5 @@
+import { withApiBase } from './apiBase.js';
+
 const DEVICE_KEY = '_ev_did';
 
 let session = null;
@@ -47,14 +49,14 @@ export function getSession() {
 
 export async function verifyPin(pin) {
   const deviceId = getDeviceId();
-  const response = await fetch('/api/auth/verify-pin', {
+  const response = await fetch(withApiBase('/api/auth/verify-pin'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin, deviceId }),
   });
 
   if (response.status === 403) {
-    const registerResponse = await fetch('/api/auth/register-device', {
+    const registerResponse = await fetch(withApiBase('/api/auth/register-device'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin, deviceId }),

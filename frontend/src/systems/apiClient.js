@@ -1,7 +1,8 @@
 import { clearSession, getAuthHeaders } from './authManager.js';
+import { withApiBase } from './apiBase.js';
 
 export async function apiClient(path, options = {}, handlers = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(withApiBase(path), {
     ...options,
     headers: {
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
