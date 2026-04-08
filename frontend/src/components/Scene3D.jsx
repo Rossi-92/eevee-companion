@@ -5,7 +5,7 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { ANIMATION_MAP } from '../constants/animationMap.js';
 import { EEVEELUTIONS } from '../constants/eeveelutions.js';
 
-const MODEL_SCALE = 3.2;
+const MODEL_SCALE = 2.6;
 const FLOOR_Y = -1.25;
 
 const REACTION_LINES = {
@@ -140,10 +140,10 @@ function frameRig(rig, camera) {
   const fov = THREE.MathUtils.degToRad(camera.fov);
   const distanceForHeight = safeHeight / (2 * Math.tan(fov / 2));
   const distanceForWidth = safeWidth / (2 * Math.tan(fov / 2)) / camera.aspect;
-  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.34;
+  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.48;
 
-  camera.position.set(center.x, center.y + safeHeight * 0.14, center.z + distance);
-  camera.lookAt(center.x, center.y + safeHeight * 0.1, center.z);
+  camera.position.set(center.x, center.y + safeHeight * 0.12, center.z + distance);
+  camera.lookAt(center.x, center.y + safeHeight * 0.08, center.z);
   camera.updateProjectionMatrix();
 }
 
@@ -345,8 +345,8 @@ export default function Scene3D({
       const sleeping = sleepingRef.current;
 
       if (rig) {
-        rig.position.y = (rig.userData.baseY ?? -0.15) + Math.sin(elapsed * 1.1) * (sleeping ? 0.01 : 0.02);
-        rig.rotation.y = Math.sin(elapsed / 7) * 0.12;
+        rig.position.y = (rig.userData.baseY ?? -0.15) + Math.sin(elapsed * 1.1) * (sleeping ? 0.008 : 0.012);
+        rig.rotation.y = Math.sin(elapsed / 7) * 0.06;
       }
 
       if (parts && rig?.userData?.isFallback) {
@@ -366,7 +366,7 @@ export default function Scene3D({
       renderer.render(scene, camera);
     }
 
-    function onPointerDown(event) {
+    function onPointerUp(event) {
       if (Date.now() < state.reactionCooldownUntil || sleepingRef.current) {
         return;
       }
@@ -399,7 +399,7 @@ export default function Scene3D({
       renderer.setSize(width, height);
     }
 
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
     window.addEventListener('resize', handleResize);
     updateLighting(timePhase);
     loadForm(currentForm);
@@ -407,7 +407,7 @@ export default function Scene3D({
 
     return () => {
       cancelAnimationFrame(rafId);
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('resize', handleResize);
       state.mixer?.stopAllAction();
       renderer.dispose();
@@ -451,10 +451,10 @@ const styles = {
   canvas: {
     position: 'absolute',
     left: '50%',
-    bottom: 0,
+    bottom: -12,
     transform: 'translateX(-50%)',
-    width: 'min(1040px, 78vw)',
-    height: 'min(900px, 86vh)',
+    width: 'min(980px, 74vw)',
+    height: 'min(980px, 92vh)',
     zIndex: 5,
     pointerEvents: 'auto',
   },

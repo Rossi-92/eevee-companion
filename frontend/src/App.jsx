@@ -46,6 +46,7 @@ export default function App() {
   const [voiceSupported] = useState(isVoiceInputSupported());
   const [history, setHistory] = useState([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [evolutionFlash, setEvolutionFlash] = useState(false);
   const [ambientTint, setAmbientTint] = useState('transparent');
   const [faceTrackingNote, setFaceTrackingNote] = useState('');
@@ -265,19 +266,26 @@ export default function App() {
   }
 
   async function handleTalk() {
+    if (isListening || isSpeaking || !isAuthenticated || isSleeping) {
+      return;
+    }
+
     if (!voiceSupported) {
       await runConversation('Hello Eevee');
       return;
     }
 
     try {
+      setIsListening(true);
       setConvoState('listening');
       setMood('thinking');
       setChatBubble('Listening...');
       const transcript = await startListening();
       await runConversation(transcript || 'Hello Eevee');
     } catch {
-      triggerBubble('Eevee could not hear that. Want to try again?', 'sad', 'resting');
+      await runConversation('Hello Eevee');
+    } finally {
+      setIsListening(false);
     }
   }
 
