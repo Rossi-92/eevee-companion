@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Background from './components/Background.jsx';
 import ClockWidget from './components/ClockWidget.jsx';
-import EvolutionParticles from './components/EvolutionParticles.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Scene3D from './components/Scene3D.jsx';
 import SleepOverlay from './components/SleepOverlay.jsx';
 import TrainerPIN from './components/TrainerPIN.jsx';
-import WeatherEffects from './components/WeatherEffects.jsx';
 import WeatherWidget from './components/WeatherWidget.jsx';
 import { EVOLUTION_NAMES, EEVEELUTIONS } from './constants/eeveelutions.js';
 import { verifyPin, clearSession } from './systems/authManager.js';
@@ -365,19 +363,13 @@ export default function App() {
       {showCompanion ? <ClockWidget now={now} tone={timeState.widgetTone} /> : null}
       {showCompanion ? (
         <>
-          <WeatherEffects condition={weather.condition} />
-          <EvolutionParticles
-            effect={EEVEELUTIONS[currentForm]?.particleEffect}
-            themeColor={EEVEELUTIONS[currentForm]?.themeColor}
-          />
-          <div style={{ ...styles.ambientTint, background: ambientTint }} />
-          <div style={styles.stageGlow} />
           <Scene3D
             mood={mood}
             currentForm={currentForm}
             timePhase={timeState.phase}
             isSleeping={isSleeping}
             onReaction={handleReaction}
+            onActivate={handleTalk}
           />
 
           <WeatherWidget weather={weather} tone={timeState.widgetTone} />
@@ -405,43 +397,11 @@ const styles = {
     height: '100vh',
     overflow: 'hidden',
   },
-  stageGlow: {
-    position: 'absolute',
-    left: '50%',
-    bottom: '18%',
-    width: 540,
-    height: 220,
-    transform: 'translateX(-50%)',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(255, 211, 143, 0.26), transparent 70%)',
-    filter: 'blur(16px)',
-  },
-  ambientTint: {
-    position: 'absolute',
-    inset: 0,
-    zIndex: 4,
-    transition: 'background 2s ease',
-  },
   flash: {
     position: 'absolute',
     inset: 0,
     zIndex: 21,
     background: 'radial-gradient(circle at center, rgba(255,255,255,0.95), rgba(255,255,255,0.1))',
     animation: 'flashFade 1.5s ease forwards',
-  },
-  note: {
-    position: 'absolute',
-    right: 24,
-    bottom: 110,
-    zIndex: 12,
-    maxWidth: 360,
-    padding: '12px 14px',
-    borderRadius: 16,
-    background: 'rgba(8, 12, 25, 0.32)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    color: 'rgba(255,255,255,0.72)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    fontSize: 13,
   },
 };

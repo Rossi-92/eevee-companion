@@ -130,6 +130,7 @@ export default function Scene3D({
   timePhase,
   isSleeping,
   onReaction,
+  onActivate,
 }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
@@ -223,11 +224,13 @@ export default function Scene3D({
         scene.add(rig);
         frameRig(rig, camera);
         console.log(`[Scene3D] ${formName} clips:`, clips.length ? clips.map((c) => c.name) : ['fallback-rig']);
-        const clip = clips.find((c) => c.name === 'Armature|ArmatureAction');
+        const preferredName = (ANIMATION_MAP[moodRef.current] || ANIMATION_MAP.idle).clip;
+        const clip = clips.find((c) => c.name === preferredName) || clips[0];
         if (clip) {
           const mixer = new THREE.AnimationMixer(rig);
           mixer.timeScale = (ANIMATION_MAP[moodRef.current] || ANIMATION_MAP.idle).timeScale;
-          mixer.clipAction(clip).play();
+          const action = mixer.clipAction(clip);
+          action.play();
           state.mixer = mixer;
         }
       };
@@ -316,7 +319,6 @@ export default function Scene3D({
         parts.body.scale.y = sleeping ? 0.85 : 0.95 + Math.sin(elapsed * 2) * 0.02;
       }
 
-      camera.position.x += Math.sin(elapsed / 7) * 0.01;
       renderer.render(scene, camera);
     }
 
@@ -333,6 +335,7 @@ export default function Scene3D({
       const hit = hits[0];
 
       if (!hit) {
+        onActivate?.();
         return;
       }
 
@@ -341,6 +344,7 @@ export default function Scene3D({
       const options = REACTION_LINES[zone] || REACTION_LINES.body;
       const line = options[Math.floor(Math.random() * options.length)];
       onReaction(zone, line);
+      onActivate?.();
     }
 
     function handleResize() {
