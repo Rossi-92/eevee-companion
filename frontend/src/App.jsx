@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Background from './components/Background.jsx';
 import ClockWidget from './components/ClockWidget.jsx';
+import Controls from './components/Controls.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Scene3D from './components/Scene3D.jsx';
 import SleepOverlay from './components/SleepOverlay.jsx';
