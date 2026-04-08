@@ -3,6 +3,7 @@ import { normalizeMood } from './moodEngine.js';
 
 export async function sendMessage({
   message,
+  audio,
   context,
   history,
   handlers,
@@ -13,6 +14,7 @@ export async function sendMessage({
       method: 'POST',
       body: JSON.stringify({
         message,
+        audio,
         context,
         history: history.slice(-20),
       }),
@@ -24,5 +26,6 @@ export async function sendMessage({
     text: result.text,
     mood: normalizeMood(result.mood || '', result.mood || 'happy'),
     pokemonOfTheDay: result.pokemonOfTheDay || null,
+    transcript: result.transcript || '',
   };
 }

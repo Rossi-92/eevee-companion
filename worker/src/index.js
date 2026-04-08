@@ -11,6 +11,8 @@ const RATE_LIMITS = {
   weather: { max: 240, windowSeconds: 3600 },
 };
 
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
 export default {
   async fetch(request, env, ctx) {
     const corsHeaders = buildCorsHeaders(request, env);
@@ -131,14 +133,15 @@ async function chat(request, env, ctx, deviceId) {
   const memory = (await env.EEVEE_KV?.get('memory:latest')) || '';
   const pokemonOfTheDay = getPokemonOfTheDay(body.context?.date);
   const prompt = buildContextBlock(body.context, memory, pokemonOfTheDay);
-  const text = await generateChatText(env, body, prompt);
-  const mood = extractMood(text);
-  const cleanText = text.replace(/\s*\[MOOD:[^\]]+\]\s*$/i, '').trim();
+  const result = await generateChatTurn(env, body, prompt);
+  const mood = extractMood(result.mood || result.text);
+  const cleanText = result.text.replace(/\s*\[MOOD:[^\]]+\]\s*$/i, '').trim();
+  const userContent = result.transcript || body.message || '[voice input]';
 
   const logKey = `log:${new Date().toISOString()}`;
   await env.EEVEE_KV?.put(
     logKey,
-    JSON.stringify({ user: body.message, eevee: cleanText, mood }),
+    JSON.stringify({ user: userContent, eevee: cleanText, mood }),
     { expirationTtl: 30 * 24 * 3600 },
   );
 
@@ -150,7 +153,7 @@ async function chat(request, env, ctx, deviceId) {
   if (newCount >= 10) {
     // Reset counter and update memory together — counter only resets if memory write succeeds
     ctx.waitUntil(
-      updateMemory(env, body.message, cleanText).then(() =>
+      updateMemory(env, userContent, cleanText).then(() =>
         env.EEVEE_KV?.put(counterKey, JSON.stringify({ count: 0 })),
       ),
     );
@@ -158,7 +161,7 @@ async function chat(request, env, ctx, deviceId) {
     await env.EEVEE_KV?.put(counterKey, JSON.stringify({ count: newCount }));
   }
 
-  return json({ text: cleanText, mood, pokemonOfTheDay });
+  return json({ text: cleanText, mood, pokemonOfTheDay, transcript: result.transcript || '' });
 }
 
 async function speak(request, env, deviceId) {
@@ -168,7 +171,7 @@ async function speak(request, env, deviceId) {
   if (!env.ELEVENLABS_API_KEY || !env.ELEVENLABS_VOICE_ID) {
     return json({
       ok: false,
-      provider: 'browser-fallback',
+      provider: 'elevenlabs',
       reason: 'missing_worker_secret',
       message: 'Worker is missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID.',
     });
@@ -199,7 +202,7 @@ async function speak(request, env, deviceId) {
     return json(
       {
         ok: false,
-        provider: 'browser-fallback',
+        provider: 'elevenlabs',
         reason: 'elevenlabs_request_failed',
         status: response.status,
         message: detail.slice(0, 500),
@@ -304,7 +307,7 @@ async function updateMemory(env, userMsg, eeveeMsg) {
 
   const currentMemory = (await env.EEVEE_KV?.get('memory:latest')) || '';
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -435,13 +438,21 @@ async function sign(value, secret) {
     .replace(/=+$/g, '');
 }
 
-async function generateChatText(env, body, prompt) {
+async function generateChatTurn(env, body, prompt) {
   if (!env.GEMINI_API_KEY) {
     throw Object.assign(new Error('Worker is missing GEMINI_API_KEY.'), { status: 503 });
   }
 
+  if (body.audio?.data) {
+    return generateChatTurnFromAudio(env, body, prompt);
+  }
+
+  if (!body.message?.trim()) {
+    throw Object.assign(new Error('No message content was provided.'), { status: 400 });
+  }
+
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: {
@@ -487,7 +498,102 @@ async function generateChatText(env, body, prompt) {
     throw Object.assign(new Error('Gemini returned an empty response.'), { status: 502 });
   }
 
-  return text;
+  return { text, mood: extractMood(text), transcript: body.message.trim() };
+}
+
+async function generateChatTurnFromAudio(env, body, prompt) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }],
+        },
+        contents: [
+          ...(body.history || []).map((entry) => ({
+            role: entry.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: entry.content }],
+          })),
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `${prompt}
+
+Listen to the attached audio from Lilianna.
+1. Work out what she said.
+2. Reply as Eevee in one short natural sentence.
+3. End the reply with a mood tag like [MOOD:happy].
+
+Return valid JSON only with keys:
+- transcript
+- reply
+- mood`,
+              },
+              {
+                inlineData: {
+                  mimeType: body.audio.mimeType || 'audio/wav',
+                  data: body.audio.data,
+                },
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.75,
+          topP: 0.92,
+          topK: 40,
+          maxOutputTokens: 220,
+          responseMimeType: 'application/json',
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    let detail = 'Gemini audio request failed.';
+    try {
+      detail = (await response.text()).slice(0, 500) || detail;
+    } catch {}
+    throw Object.assign(new Error(detail), { status: 502 });
+  }
+
+  const data = await response.json();
+  const payload =
+    data.candidates?.[0]?.content?.parts?.map((part) => part.text).join('\n').trim() || '';
+
+  if (!payload) {
+    throw Object.assign(new Error('Gemini returned an empty audio response.'), { status: 502 });
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    throw Object.assign(new Error(`Gemini returned invalid JSON: ${payload.slice(0, 200)}`), { status: 502 });
+  }
+
+  const transcript = `${parsed.transcript || ''}`.trim();
+  const text = `${parsed.reply || ''}`.trim();
+  const mood = `${parsed.mood || ''}`.trim();
+
+  if (!transcript) {
+    throw Object.assign(new Error('Gemini could not recognize the spoken input.'), { status: 422 });
+  }
+
+  if (!text) {
+    throw Object.assign(new Error('Gemini did not return a spoken reply.'), { status: 502 });
+  }
+
+  return {
+    transcript,
+    text,
+    mood,
+  };
 }
 
 function extractMood(text = '') {

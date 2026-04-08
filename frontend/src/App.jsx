@@ -186,26 +186,7 @@ export default function App() {
       return;
     }
 
-    stopWakeWordRef.current = startContinuousListening((transcript) => {
-      if (!authRef.current || listeningRef.current || speakingRef.current) {
-        return;
-      }
-
-      if (sleepingRef.current) {
-        handleWake();
-      }
-
-      const cleaned = transcript
-        .replace(/(^|\b)(hi eevee|hey eevee|eevee)[,\s:]*/i, '')
-        .trim();
-
-      if (cleaned) {
-        void runConversation(cleaned);
-        return;
-      }
-
-      void handleTalk();
-    });
+    stopWakeWordRef.current = startContinuousListening(() => {});
 
     return () => {
       stopWakeWordRef.current?.();
@@ -279,7 +260,7 @@ export default function App() {
     }, 30000);
   }
 
-  async function runConversation(message) {
+  async function runConversation(input) {
     if (!isAuthenticated || isSleeping) {
       return;
     }
@@ -290,14 +271,15 @@ export default function App() {
       setChatBubble('...');
       const context = buildContext();
       const result = await sendMessage({
-        message,
+        message: typeof input === 'string' ? input : '',
+        audio: typeof input === 'string' ? null : input,
         context,
         history,
         handlers: buildApiHandlers(),
       });
       setHistory((current) => [
         ...current.slice(-19),
-        { role: 'user', content: message },
+        { role: 'user', content: result.transcript || (typeof input === 'string' ? input : '[voice message]') },
         { role: 'assistant', content: result.text },
       ]);
       setPokemonOfTheDay(result.pokemonOfTheDay || pokemonOfTheDay);
@@ -329,15 +311,15 @@ export default function App() {
       setIsListening(true);
       setConvoState('listening');
       setMood('thinking');
-      const transcript = await startListening();
-      if (!transcript?.trim()) {
+      const recording = await startListening();
+      if (!recording?.data) {
         audioManager.playSound('sleep_lullaby');
         setConvoState('resting');
         setMood('idle');
         return;
       }
       audioManager.playSound('wake_chime');
-      await runConversation(transcript.trim());
+      await runConversation(recording);
     } catch (error) {
       audioManager.playSound('sleep_lullaby');
       setConvoState('resting');
