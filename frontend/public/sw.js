@@ -68,7 +68,8 @@ function cacheResponse(request, response) {
     return;
   }
 
+  const clone = response.clone();
   caches.open(CACHE_NAME).then((cache) => {
-    cache.put(request, response.clone()).catch(() => {});
+    cache.put(request, clone).catch(() => {});
   });
 }
