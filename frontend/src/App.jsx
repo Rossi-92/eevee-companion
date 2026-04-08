@@ -319,19 +319,30 @@ export default function App() {
     }
 
     if (!voiceSupported) {
-      await runConversation('Hello Eevee');
+      audioManager.playSound('sleep_lullaby');
+      console.error('[voice-input] SpeechRecognition is not supported in this browser.');
       return;
     }
 
     try {
+      audioManager.playSound('tap');
       setIsListening(true);
       setConvoState('listening');
       setMood('thinking');
-      setChatBubble('Listening...');
       const transcript = await startListening();
-      await runConversation(transcript || 'Hello Eevee');
-    } catch {
-      await runConversation('Hello Eevee');
+      if (!transcript?.trim()) {
+        audioManager.playSound('sleep_lullaby');
+        setConvoState('resting');
+        setMood('idle');
+        return;
+      }
+      audioManager.playSound('wake_chime');
+      await runConversation(transcript.trim());
+    } catch (error) {
+      audioManager.playSound('sleep_lullaby');
+      setConvoState('resting');
+      setMood('sad');
+      console.error('[voice-input] listen failed', error);
     } finally {
       setIsListening(false);
     }
