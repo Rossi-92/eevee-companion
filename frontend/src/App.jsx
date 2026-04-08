@@ -404,6 +404,13 @@ export default function App() {
           />
 
           <WeatherWidget weather={weather} tone={timeState.widgetTone} />
+          <Controls 
+            onTalk={handleTalk} 
+            onPet={handlePet} 
+            onSleep={handleSleep} 
+            onEvolve={() => handleEvolution()} 
+            disabled={isSleeping || isSpeaking || isListening} 
+          />
           {evolutionFlash ? <div style={styles.flash} /> : null}
         </>
       ) : null}

@@ -450,11 +450,10 @@ export default function Scene3D({
 const styles = {
   canvas: {
     position: 'absolute',
-    left: '50%',
-    bottom: -12,
-    transform: 'translateX(-50%)',
-    width: 'min(980px, 74vw)',
-    height: 'min(980px, 92vh)',
+    left: 0,
+    top: 0,
+    width: '100vw',
+    height: '100vh',
     zIndex: 5,
     pointerEvents: 'auto',
   },

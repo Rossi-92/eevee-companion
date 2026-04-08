@@ -21,10 +21,14 @@ export function sharedWidget(tone) {
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
     color: 'rgba(255,255,255,0.92)',
-    padding: '16px 18px',
+    padding: '16px 20px',
     display: 'flex',
     flexDirection: 'column',
     gap: 4,
+    width: 240,
+    height: 110,
+    boxSizing: 'border-box',
+    justifyContent: 'center',
   };
 }
 
@@ -33,7 +37,6 @@ const styles = {
     position: 'absolute',
     top: 24,
     left: 24,
-    minWidth: 220,
     zIndex: 10,
   },
   label: {

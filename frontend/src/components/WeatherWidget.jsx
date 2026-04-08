@@ -18,7 +18,6 @@ const styles = {
     position: 'absolute',
     top: 24,
     right: 24,
-    minWidth: 200,
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 10,
