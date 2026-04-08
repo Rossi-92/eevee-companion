@@ -115,11 +115,11 @@ async function registerDevice(request, env) {
   }
 
   const devices = await listDevices(env);
-  if (devices.length > 0) {
-    return json({ error: 'A trainer device has already been registered.' }, 403);
+  if (!devices.includes(body.deviceId)) {
+    devices.push(body.deviceId);
+    await env.EEVEE_KV?.put('devices', JSON.stringify(devices));
   }
 
-  await env.EEVEE_KV?.put('devices', JSON.stringify([body.deviceId]));
   const token = await signToken({ deviceId: body.deviceId }, env.JWT_SECRET || 'dev-secret');
   return json({ token, expiresIn: 86400, registered: true });
 }
