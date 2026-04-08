@@ -1,0 +1,8 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+worker/.dev.vars
+*.log
+frontend/package-lock.json
+worker/package-lock.json

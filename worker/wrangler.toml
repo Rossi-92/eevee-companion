@@ -1,0 +1,7 @@
+name = "eevee-worker"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+[[kv_namespaces]]
+binding = "EEVEE_KV"
+id = "29bcdb9d05a84e36a69ee10166cbb15f"

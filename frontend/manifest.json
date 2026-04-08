@@ -1,0 +1,24 @@
+{
+  "name": "Eevee Companion",
+  "short_name": "Eevee",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#cc2020",
+  "theme_color": "#cc2020",
+  "description": "A voice-interactive Eevee companion for Lilianna.",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

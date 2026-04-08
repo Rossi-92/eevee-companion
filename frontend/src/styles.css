@@ -1,0 +1,114 @@
+:root {
+  color-scheme: dark;
+  font-family: "Quicksand", "Trebuchet MS", "Avenir Next", sans-serif;
+  background: #0f1721;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 207, 140, 0.15), transparent 30%),
+    linear-gradient(180deg, #112032 0%, #091118 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes rainfall {
+  0% {
+    transform: translate3d(0, -120px, 0);
+  }
+
+  100% {
+    transform: translate3d(-60px, 120vh, 0);
+  }
+}
+
+@keyframes cloudDrift {
+  0% {
+    transform: translateX(-10vw);
+  }
+
+  100% {
+    transform: translateX(110vw);
+  }
+}
+
+@keyframes fogDrift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(8vw);
+  }
+}
+
+@keyframes floatParticle {
+  0%,
+  100% {
+    transform: translateY(0) scale(0.95);
+  }
+
+  50% {
+    transform: translateY(-18px) scale(1.05);
+  }
+}
+
+@keyframes flashFade {
+  0% {
+    opacity: 0;
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
