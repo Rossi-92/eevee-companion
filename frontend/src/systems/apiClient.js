@@ -23,8 +23,15 @@ export async function apiClient(path, options = {}, handlers = {}) {
   if (!response.ok) {
     let message = 'Request failed.';
     try {
-      const data = await response.json();
-      message = data.error || message;
+      const raw = await response.text();
+      if (raw) {
+        try {
+          const data = JSON.parse(raw);
+          message = data.error || data.message || message;
+        } catch {
+          message = raw;
+        }
+      }
     } catch {}
 
     const error = new Error(message);
@@ -34,7 +41,8 @@ export async function apiClient(path, options = {}, handlers = {}) {
 
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
-    return response.json();
+    const raw = await response.text();
+    return raw ? JSON.parse(raw) : {};
   }
 
   return response;
