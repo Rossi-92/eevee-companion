@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Background from './components/Background.jsx';
 import ClockWidget from './components/ClockWidget.jsx';
-import Controls from './components/Controls.jsx';
 import EvolutionParticles from './components/EvolutionParticles.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
-import PokemonBadge from './components/PokemonBadge.jsx';
 import Scene3D from './components/Scene3D.jsx';
 import SleepOverlay from './components/SleepOverlay.jsx';
-import SpeechBubble from './components/SpeechBubble.jsx';
-import StatusPill from './components/StatusPill.jsx';
 import TrainerPIN from './components/TrainerPIN.jsx';
 import WeatherEffects from './components/WeatherEffects.jsx';
 import WeatherWidget from './components/WeatherWidget.jsx';
@@ -122,10 +118,21 @@ export default function App() {
     });
     sleepManagerRef.current.poke();
 
-    stopWakeWordRef.current = startContinuousListening(() => {
+    stopWakeWordRef.current = startContinuousListening((transcript) => {
       if (sleepingRef.current) {
         handleWake();
+        return;
       }
+
+      if (speakingRef.current || !authRef.current) {
+        return;
+      }
+
+      const cleaned = transcript
+        .replace(/(^|\b)(hi eevee|hey eevee|eevee)[,\s:]*/i, '')
+        .trim();
+
+      void runConversation(cleaned || 'Hello Eevee');
     });
 
     weatherTimer = window.setInterval(async () => {
@@ -374,25 +381,6 @@ export default function App() {
           />
 
           <WeatherWidget weather={weather} tone={timeState.widgetTone} />
-          <StatusPill mood={mood} state={convoState} tone={timeState.widgetTone} name={EEVEELUTIONS[currentForm]?.name} />
-          <SpeechBubble text={chatBubble} tone={timeState.widgetTone} />
-          <PokemonBadge
-            name={pokemonOfTheDay}
-            visible={pokemonBadgeVisible}
-            onClick={handlePokemonBadge}
-            tone={timeState.widgetTone}
-          />
-
-          <Controls
-            onTalk={handleTalk}
-            onPet={handlePet}
-            onSleep={handleSleep}
-            onEvolve={() => handleEvolution()}
-            disabled={isSleeping || !isAuthenticated}
-            talkLabel={voiceSupported ? 'Talk' : 'Chat'}
-          />
-
-          {faceTrackingNote ? <div style={styles.note}>{faceTrackingNote}</div> : null}
           {evolutionFlash ? <div style={styles.flash} /> : null}
         </>
       ) : null}

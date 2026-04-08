@@ -4,11 +4,125 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ANIMATION_MAP } from '../constants/animationMap.js';
 import { EEVEELUTIONS } from '../constants/eeveelutions.js';
 
+const MODEL_SCALE = 2.9;
+const FLOOR_Y = -1.25;
+
 const REACTION_LINES = {
   head: ['Vee~!', 'That tickles!', 'Eevee loves head pats!'],
   body: ['Hehe!', 'That tickles, Lili!', 'Eevee is ticklish there!'],
   tail: ['My tail!', 'Wag wag wag!', 'Catch it if you can!'],
 };
+
+function buildFallbackRig(formName) {
+  const form = EEVEELUTIONS[formName] || EEVEELUTIONS.eevee;
+  const rig = new THREE.Group();
+  const fur = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(form.themeColor),
+    roughness: 0.85,
+    metalness: 0.05,
+  });
+  const cream = new THREE.MeshStandardMaterial({ color: 0xf4e8d2, roughness: 0.9 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), fur);
+  body.scale.set(1.2, 0.95, 1.4);
+  body.position.y = -0.05;
+  rig.add(body);
+
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 18), cream);
+  chest.scale.set(1, 1.1, 0.7);
+  chest.position.set(0, -0.18, 0.78);
+  rig.add(chest);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.72, 28, 22), fur);
+  head.position.set(0, 0.95, 0.32);
+  rig.add(head);
+
+  const leftEar = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.95, 16), fur);
+  leftEar.position.set(-0.38, 1.72, 0.2);
+  leftEar.rotation.z = -0.48;
+  leftEar.rotation.x = 0.12;
+  rig.add(leftEar);
+
+  const rightEar = leftEar.clone();
+  rightEar.position.x = 0.38;
+  rightEar.rotation.z = 0.48;
+  rig.add(rightEar);
+
+  const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 1.35, 6, 12), fur);
+  tail.position.set(0.96, 0.15, -0.75);
+  tail.rotation.z = 0.92;
+  tail.rotation.x = 0.36;
+  rig.add(tail);
+
+  const legs = [
+    [-0.42, -1.05, 0.58],
+    [0.42, -1.05, 0.58],
+    [-0.48, -1.05, -0.48],
+    [0.48, -1.05, -0.48],
+  ].map(([x, y, z]) => {
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.78, 4, 10), fur);
+    leg.position.set(x, y, z);
+    rig.add(leg);
+    return leg;
+  });
+
+  const headZone = new THREE.Mesh(
+    new THREE.SphereGeometry(0.9, 16, 12),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
+  );
+  headZone.position.copy(head.position);
+  headZone.userData.zone = 'head';
+  rig.add(headZone);
+
+  const bodyZone = new THREE.Mesh(
+    new THREE.SphereGeometry(1.25, 16, 12),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
+  );
+  bodyZone.position.set(0, 0.1, 0.12);
+  bodyZone.userData.zone = 'body';
+  rig.add(bodyZone);
+
+  const tailZone = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 12, 10),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
+  );
+  tailZone.position.copy(tail.position);
+  tailZone.userData.zone = 'tail';
+  rig.add(tailZone);
+
+  rig.position.y = -0.15;
+  rig.userData.parts = { head, leftEar, rightEar, tail, body, legs };
+  rig.userData.interactiveZones = [headZone, bodyZone, tailZone];
+  rig.userData.isFallback = true;
+  rig.userData.baseY = rig.position.y;
+  return rig;
+}
+
+function frameRig(rig, camera) {
+  const box = new THREE.Box3().setFromObject(rig);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const safeHeight = Math.max(size.y, 1.5);
+  const safeWidth = Math.max(size.x, 1.2);
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const distanceForHeight = safeHeight / (2 * Math.tan(fov / 2));
+  const distanceForWidth = safeWidth / (2 * Math.tan(fov / 2)) / camera.aspect;
+  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.45;
+
+  camera.position.set(center.x, center.y + safeHeight * 0.1, center.z + distance);
+  camera.lookAt(center.x, center.y + safeHeight * 0.08, center.z);
+  camera.updateProjectionMatrix();
+}
+
+function placeRigOnStage(rig) {
+  const box = new THREE.Box3().setFromObject(rig);
+  const center = box.getCenter(new THREE.Vector3());
+  const min = box.min.clone();
+  rig.position.x -= center.x;
+  rig.position.z -= center.z;
+  rig.position.y += FLOOR_Y - min.y;
+  rig.userData.baseY = rig.position.y;
+}
 
 export default function Scene3D({
   mood,
@@ -40,8 +154,8 @@ export default function Scene3D({
       return;
     }
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
@@ -57,7 +171,7 @@ export default function Scene3D({
     scene.add(ambient, directional, fill);
 
     const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(2, 48),
+      new THREE.CircleGeometry(2.8, 64),
       new THREE.MeshBasicMaterial({
         color: 0x3b2a1d,
         transparent: true,
@@ -65,7 +179,7 @@ export default function Scene3D({
       }),
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -1.15;
+    ground.position.y = FLOOR_Y;
     scene.add(ground);
 
     const raycaster = new THREE.Raycaster();
@@ -85,96 +199,13 @@ export default function Scene3D({
       mood,
       mixer: null,
       currentAction: null,
+      loader: new GLTFLoader(),
     };
     sceneRef.current = state;
-
-    function buildFallbackRig(formName) {
-      const form = EEVEELUTIONS[formName] || EEVEELUTIONS.eevee;
-      const rig = new THREE.Group();
-      const fur = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(form.themeColor),
-        roughness: 0.85,
-        metalness: 0.05,
-      });
-      const cream = new THREE.MeshStandardMaterial({ color: 0xf4e8d2, roughness: 0.9 });
-
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), fur);
-      body.scale.set(1.2, 0.95, 1.4);
-      body.position.y = -0.05;
-      rig.add(body);
-
-      const chest = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 18), cream);
-      chest.scale.set(1, 1.1, 0.7);
-      chest.position.set(0, -0.18, 0.78);
-      rig.add(chest);
-
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.72, 28, 22), fur);
-      head.position.set(0, 0.95, 0.32);
-      rig.add(head);
-
-      const leftEar = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.95, 16), fur);
-      leftEar.position.set(-0.38, 1.72, 0.2);
-      leftEar.rotation.z = -0.48;
-      leftEar.rotation.x = 0.12;
-      rig.add(leftEar);
-
-      const rightEar = leftEar.clone();
-      rightEar.position.x = 0.38;
-      rightEar.rotation.z = 0.48;
-      rig.add(rightEar);
-
-      const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 1.35, 6, 12), fur);
-      tail.position.set(0.96, 0.15, -0.75);
-      tail.rotation.z = 0.92;
-      tail.rotation.x = 0.36;
-      rig.add(tail);
-
-      const legs = [
-        [-0.42, -1.05, 0.58],
-        [0.42, -1.05, 0.58],
-        [-0.48, -1.05, -0.48],
-        [0.48, -1.05, -0.48],
-      ].map(([x, y, z]) => {
-        const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.78, 4, 10), fur);
-        leg.position.set(x, y, z);
-        rig.add(leg);
-        return leg;
-      });
-
-      const headZone = new THREE.Mesh(
-        new THREE.SphereGeometry(0.9, 16, 12),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
-      );
-      headZone.position.copy(head.position);
-      headZone.userData.zone = 'head';
-      rig.add(headZone);
-
-      const bodyZone = new THREE.Mesh(
-        new THREE.SphereGeometry(1.25, 16, 12),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
-      );
-      bodyZone.position.set(0, 0.1, 0.12);
-      bodyZone.userData.zone = 'body';
-      rig.add(bodyZone);
-
-      const tailZone = new THREE.Mesh(
-        new THREE.SphereGeometry(0.55, 12, 10),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
-      );
-      tailZone.position.copy(tail.position);
-      tailZone.userData.zone = 'tail';
-      rig.add(tailZone);
-
-      rig.position.y = -0.15;
-      rig.userData.parts = { head, leftEar, rightEar, tail, body, legs };
-      rig.userData.interactiveZones = [headZone, bodyZone, tailZone];
-      return rig;
-    }
 
     async function loadForm(formName) {
       const fallbackRig = buildFallbackRig(formName);
       const modelPath = EEVEELUTIONS[formName]?.model;
-      const loader = new GLTFLoader();
       const cached = state.gltfCache.get(formName);
 
       const useRig = (rig, clips = []) => {
@@ -190,6 +221,7 @@ export default function Scene3D({
         state.currentForm = formName;
         state.interactiveZones = rig.userData.interactiveZones || [];
         scene.add(rig);
+        frameRig(rig, camera);
         console.log(`[Scene3D] ${formName} clips:`, clips.length ? clips.map((c) => c.name) : ['fallback-rig']);
         const clip = clips.find((c) => c.name === 'Armature|ArmatureAction');
         if (clip) {
@@ -211,16 +243,17 @@ export default function Scene3D({
       }
 
       try {
-        const gltf = await loader.loadAsync(modelPath);
+        const gltf = await state.loader.loadAsync(modelPath);
         state.gltfCache.set(formName, gltf);
         const rig = gltf.scene.clone(true);
-        rig.scale.setScalar(1.8);
-        rig.position.y = -1.15;
-        rig.userData.parts = fallbackRig.userData.parts;
+        rig.scale.setScalar(MODEL_SCALE);
+        placeRigOnStage(rig);
+        rig.userData.parts = null;
+        rig.userData.isFallback = false;
         // Clone hit zones and add them as children of the loaded rig so the
         // raycaster can find them. Divide positions/scale by the rig's own
-        // scale (1.8) so they appear at the correct world-space size.
-        const INV = 1 / 1.8;
+        // scale so they appear at the correct world-space size.
+        const INV = 1 / MODEL_SCALE;
         const zones = fallbackRig.userData.interactiveZones.map((zone) => {
           const z = zone.clone();
           z.position.multiplyScalar(INV);
@@ -234,6 +267,8 @@ export default function Scene3D({
         useRig(fallbackRig);
       }
     }
+
+    state.loadForm = loadForm;
 
     function updateLighting(phase) {
       const lightMap = {
@@ -262,8 +297,12 @@ export default function Scene3D({
       const currentMood = moodRef.current;
       const sleeping = sleepingRef.current;
 
-      if (parts) {
-        rig.position.y = -0.15 + Math.sin(elapsed * 1.1) * (sleeping ? 0.02 : 0.05);
+      if (rig) {
+        rig.position.y = (rig.userData.baseY ?? -0.15) + Math.sin(elapsed * 1.1) * (sleeping ? 0.02 : 0.05);
+        rig.rotation.y = Math.sin(elapsed / 7) * 0.12;
+      }
+
+      if (parts && rig?.userData?.isFallback) {
         rig.rotation.y = Math.sin(elapsed / 7) * 0.12;
         parts.head.rotation.z = currentMood === 'thinking' ? 0.1 : Math.sin(elapsed * 0.6) * 0.02;
         parts.head.rotation.y =
@@ -277,8 +316,7 @@ export default function Scene3D({
         parts.body.scale.y = sleeping ? 0.85 : 0.95 + Math.sin(elapsed * 2) * 0.02;
       }
 
-      camera.position.x = Math.sin(elapsed / 7) * 0.12;
-      camera.lookAt(0, 0.35, 0);
+      camera.position.x += Math.sin(elapsed / 7) * 0.01;
       renderer.render(scene, camera);
     }
 
@@ -355,74 +393,7 @@ export default function Scene3D({
     if (!sceneState || sceneState.currentForm === currentForm) {
       return;
     }
-    const mount = mountRef.current;
-    if (!mount) {
-      return;
-    }
-
-    const loader = new GLTFLoader();
-    const form = EEVEELUTIONS[currentForm] || EEVEELUTIONS.eevee;
-    const fallbackGroup = new THREE.Group();
-    const simple = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 32, 16),
-      new THREE.MeshStandardMaterial({ color: form.themeColor, roughness: 0.8 }),
-    );
-    fallbackGroup.add(simple);
-    fallbackGroup.userData.parts = {
-      head: simple,
-      leftEar: simple,
-      rightEar: simple,
-      tail: simple,
-      body: simple,
-      legs: [],
-    };
-    fallbackGroup.userData.interactiveZones = [simple];
-    fallbackGroup.position.y = -0.15;
-
-    const useRig = (rig, clips = []) => {
-      if (sceneState.currentRig) {
-        sceneState.scene.remove(sceneState.currentRig);
-      }
-      if (sceneState.mixer) {
-        sceneState.mixer.stopAllAction();
-        sceneState.mixer = null;
-        sceneState.currentAction = null;
-      }
-      sceneState.currentRig = rig;
-      sceneState.currentForm = currentForm;
-      sceneState.interactiveZones = rig.userData.interactiveZones || [];
-      sceneState.scene.add(rig);
-      console.log(`[Scene3D] ${currentForm} clips:`, clips.length ? clips.map((c) => c.name) : ['fallback-rig']);
-      const clip = clips.find((c) => c.name === 'Armature|ArmatureAction');
-      if (clip) {
-        const mixer = new THREE.AnimationMixer(rig);
-        mixer.timeScale = (ANIMATION_MAP[moodRef.current] || ANIMATION_MAP.idle).timeScale;
-        mixer.clipAction(clip).play();
-        sceneState.mixer = mixer;
-      }
-    };
-
-    loader
-      .loadAsync(form.model)
-      .then((gltf) => {
-        const rig = gltf.scene.clone(true);
-        rig.scale.setScalar(1.8);
-        rig.position.y = -1.15;
-        rig.userData.parts = fallbackGroup.userData.parts;
-        const INV = 1 / 1.8;
-        const zones = fallbackGroup.userData.interactiveZones.map((zone) => {
-          const z = zone.clone();
-          z.position.multiplyScalar(INV);
-          z.scale.setScalar(INV);
-          rig.add(z);
-          return z;
-        });
-        rig.userData.interactiveZones = zones;
-        useRig(rig, gltf.animations);
-      })
-      .catch(() => {
-        useRig(fallbackGroup);
-      });
+    sceneState.loadForm?.(currentForm);
   }, [currentForm]);
 
   return <div ref={mountRef} style={styles.canvas} />;
@@ -432,10 +403,10 @@ const styles = {
   canvas: {
     position: 'absolute',
     left: '50%',
-    bottom: 72,
+    bottom: 24,
     transform: 'translateX(-50%)',
-    width: 'min(840px, 68vw)',
-    height: 'min(640px, 62vh)',
+    width: 'min(1080px, 82vw)',
+    height: 'min(760px, 72vh)',
     zIndex: 5,
     pointerEvents: 'auto',
   },
