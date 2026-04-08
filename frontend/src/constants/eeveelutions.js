@@ -6,7 +6,6 @@ import espeonModel from '../../assets/models/espeon.glb?url';
 import umbreonModel from '../../assets/models/umbreon.glb?url';
 import leafeonModel from '../../assets/models/leafeon.glb?url';
 import glaceonModel from '../../assets/models/glaceon.glb?url';
-import sylveonModel from '../../assets/models/sylveon.glb?url';
 
 export const EEVEELUTIONS = {
   eevee: {
@@ -100,17 +99,6 @@ export const EEVEELUTIONS = {
     cryFile: '/assets/audio/glaceon_cry.ogg',
     personality: 'poised',
     idleLines: ['Glaceon loves crisp, cool air.'],
-  },
-  sylveon: {
-    name: 'Sylveon',
-    type: 'Fairy',
-    model: sylveonModel,
-    themeColor: '#D685AD',
-    particleEffect: 'hearts',
-    ambientTint: 'rgba(200,120,170,0.05)',
-    cryFile: '/assets/audio/sylveon_cry.ogg',
-    personality: 'sweet',
-    idleLines: ['Sylveon wants to wrap the whole day in ribbons.'],
   },
 };
 

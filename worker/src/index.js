@@ -13,6 +13,7 @@ const RATE_LIMITS = {
 
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const NAME_RULES = 'Always call the trainer "Lilianna". Never call her "Lily" or "Lili". Pronounce her name as "Lily-Anna" when speaking out loud.';
+const REPLY_RULES = 'Keep every reply extremely short and conversational, usually a single sentence under 14 words. Use natural spoken cadence and avoid sounding scripted or overly formal.';
 
 export default {
   async fetch(request, env, ctx) {
@@ -189,6 +190,8 @@ async function speak(request, env, deviceId) {
       body: JSON.stringify({
         text: body.text,
         model_id: 'eleven_flash_v2_5',
+        output_format: 'mp3_22050_32',
+        optimize_streaming_latency: 3,
         voice_settings: getVoiceSettings(body.mood),
       }),
     },
@@ -447,7 +450,7 @@ async function generateChatTurn(env, body, prompt) {
 
   const response = await fetchGeminiWithFallback(env, {
     systemInstruction: {
-      parts: [{ text: buildSystemPrompt(env) }],
+      parts: [{ text: buildSystemPrompt(env, body.context?.form) }],
     },
     contents: [
       ...(body.history || []).map((entry) => ({
@@ -463,7 +466,7 @@ async function generateChatTurn(env, body, prompt) {
       temperature: 0.75,
       topP: 0.92,
       topK: 40,
-      maxOutputTokens: 140,
+      maxOutputTokens: 90,
     },
   });
 
@@ -485,7 +488,7 @@ async function generateChatTurn(env, body, prompt) {
 async function generateChatTurnFromAudio(env, body, prompt) {
   const response = await fetchGeminiWithFallback(env, {
     systemInstruction: {
-      parts: [{ text: buildSystemPrompt(env) }],
+      parts: [{ text: buildSystemPrompt(env, body.context?.form) }],
     },
     contents: [
       ...(body.history || []).map((entry) => ({
@@ -500,7 +503,7 @@ async function generateChatTurnFromAudio(env, body, prompt) {
 
 Listen to the attached audio from Lilianna.
 1. Work out what she said.
-2. Reply as Eevee in one short natural sentence.
+2. Reply as the current form in one short natural sentence.
 3. End the reply with a mood tag like [MOOD:happy].
 
 Return valid JSON only with keys:
@@ -521,7 +524,7 @@ Return valid JSON only with keys:
       temperature: 0.75,
       topP: 0.92,
       topK: 40,
-      maxOutputTokens: 220,
+      maxOutputTokens: 120,
       responseMimeType: 'application/json',
     },
   });
@@ -618,22 +621,27 @@ function extractMood(text = '') {
   return text.match(/\[MOOD:([a-z_]+)\]/i)?.[1]?.toLowerCase() || 'happy';
 }
 
-function buildSystemPrompt(env) {
-  return `${env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT}\n\n${NAME_RULES}`;
+function buildSystemPrompt(env, currentForm = 'Eevee') {
+  return [
+    env.EEVEE_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT,
+    NAME_RULES,
+    REPLY_RULES,
+    `You are currently ${currentForm}. Refer to yourself only as ${currentForm}. Never say you are a different Pokemon or evolution.`,
+  ].join('\n\n');
 }
 
 function getVoiceSettings(mood = 'idle') {
   switch (`${mood}`.toLowerCase()) {
     case 'happy':
-      return { stability: 0.65, style: 0.5 };
+      return { stability: 0.42, style: 0.28, similarity_boost: 0.82, speed: 1.1 };
     case 'excited':
-      return { stability: 0.4, style: 0.7 };
+      return { stability: 0.34, style: 0.4, similarity_boost: 0.8, speed: 1.14 };
     case 'sad':
-      return { stability: 0.75, style: 0.15 };
+      return { stability: 0.48, style: 0.16, similarity_boost: 0.84, speed: 1.0 };
     case 'sleepy':
-      return { stability: 0.8, style: 0.1 };
+      return { stability: 0.56, style: 0.1, similarity_boost: 0.84, speed: 0.96 };
     default:
-      return { stability: 0.55, style: 0.35 };
+      return { stability: 0.4, style: 0.22, similarity_boost: 0.82, speed: 1.08 };
   }
 }
 

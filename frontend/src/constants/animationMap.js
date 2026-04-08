@@ -1,7 +1,6 @@
-// All GLB models from the Pokemon-3D-api source contain exactly one animation
-// clip named 'Armature|ArmatureAction'. Mood differentiation is achieved via
-// timeScale (playback rate) + the procedural bone layer in Scene3D.jsx.
-// Sylveon (700) has no embedded clip — it falls back to procedural-only.
+// All active GLB models contain exactly one animation clip named
+// 'Armature|ArmatureAction'. Mood differentiation is achieved via timeScale
+// (playback rate) plus the procedural layer in Scene3D.jsx.
 export const ANIMATION_MAP = {
   idle:      { clip: 'Armature|ArmatureAction', timeScale: 1.0, fadeIn: 0.4 },
   happy:     { clip: 'Armature|ArmatureAction', timeScale: 1.3, fadeIn: 0.3 },
