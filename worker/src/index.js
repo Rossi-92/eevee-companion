@@ -184,7 +184,7 @@ async function speak(request, env, deviceId) {
       },
       body: JSON.stringify({
         text: body.text,
-        model_id: 'eleven_turbo_v2_5',
+        model_id: 'eleven_flash_v2_5',
         voice_settings: getVoiceSettings(body.mood),
       }),
     },
@@ -462,10 +462,10 @@ async function generateChatText(env, body, prompt) {
           },
         ],
         generationConfig: {
-          temperature: 0.85,
+          temperature: 0.75,
           topP: 0.92,
           topK: 40,
-          maxOutputTokens: 200,
+          maxOutputTokens: 140,
         },
       }),
     },

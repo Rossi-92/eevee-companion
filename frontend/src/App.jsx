@@ -13,7 +13,7 @@ import { audioManager } from './utils/audioManager.js';
 import { normalizeMood } from './systems/moodEngine.js';
 import { createSleepManager } from './systems/sleepManager.js';
 import { getTimeOfDayState } from './systems/timeOfDay.js';
-import { startListening, isVoiceInputSupported } from './systems/voiceInput.js';
+import { startContinuousListening, startListening, isVoiceInputSupported } from './systems/voiceInput.js';
 import { speak } from './systems/voiceOutput.js';
 import { fetchWeather } from './systems/weatherService.js';
 import { acquireWakeLock, releaseWakeLock } from './utils/wakeLock.js';
@@ -54,6 +54,7 @@ export default function App() {
   const authRef = useRef(false);
   const sleepingRef = useRef(false);
   const speakingRef = useRef(false);
+  const listeningRef = useRef(false);
   const formRef = useRef('eevee');
   const stopWakeWordRef = useRef(() => {});
   const sleepManagerRef = useRef(null);
@@ -75,6 +76,10 @@ export default function App() {
   useEffect(() => {
     speakingRef.current = isSpeaking;
   }, [isSpeaking]);
+
+  useEffect(() => {
+    listeningRef.current = isListening;
+  }, [isListening]);
 
   useEffect(() => {
     formRef.current = currentForm;
@@ -117,10 +122,6 @@ export default function App() {
     });
     sleepManagerRef.current.poke();
 
-    weatherTimer = window.setInterval(async () => {
-      setWeather(await fetchWeather(buildApiHandlers()));
-    }, 30 * 60 * 1000);
-
     function onVisibilityChange() {
       if (document.visibilityState === 'visible' && !sleepingRef.current) {
         acquireWakeLock();
@@ -159,6 +160,10 @@ export default function App() {
       setFaceTrackingNote('');
     }
 
+    weatherTimer = window.setInterval(async () => {
+      setWeather(await fetchWeather(buildApiHandlers()));
+    }, 30 * 60 * 1000);
+
     return () => {
       window.clearInterval(clockTimer);
       window.clearInterval(weatherTimer);
@@ -171,6 +176,41 @@ export default function App() {
       releaseWakeLock();
     };
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    stopWakeWordRef.current?.();
+    stopWakeWordRef.current = () => {};
+
+    if (!isAuthenticated || !voiceSupported || isListening || isSpeaking) {
+      return;
+    }
+
+    stopWakeWordRef.current = startContinuousListening((transcript) => {
+      if (!authRef.current || listeningRef.current || speakingRef.current) {
+        return;
+      }
+
+      if (sleepingRef.current) {
+        handleWake();
+      }
+
+      const cleaned = transcript
+        .replace(/(^|\b)(hi eevee|hey eevee|eevee)[,\s:]*/i, '')
+        .trim();
+
+      if (cleaned) {
+        void runConversation(cleaned);
+        return;
+      }
+
+      void handleTalk();
+    });
+
+    return () => {
+      stopWakeWordRef.current?.();
+      stopWakeWordRef.current = () => {};
+    };
+  }, [isAuthenticated, voiceSupported, isListening, isSpeaking]);
 
   function buildApiHandlers() {
     return {
