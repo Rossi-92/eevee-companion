@@ -5,10 +5,10 @@ const JSON_HEADERS = {
 };
 
 const RATE_LIMITS = {
-  auth: { max: 5, windowSeconds: 600 },
-  chat: { max: 60, windowSeconds: 3600 },
-  speak: { max: 60, windowSeconds: 3600 },
-  weather: { max: 10, windowSeconds: 3600 },
+  auth: { max: 20, windowSeconds: 600 },
+  chat: { max: 2000, windowSeconds: 3600 },
+  speak: { max: 2000, windowSeconds: 3600 },
+  weather: { max: 240, windowSeconds: 3600 },
 };
 
 export default {
@@ -318,7 +318,7 @@ async function enforceRateLimit(env, key, config) {
   }
 
   if (existing.count >= config.max) {
-    const error = new Error('Rate limit reached. Eevee is resting for a moment.');
+    const error = new Error('Too many requests hit the companion service. Please wait a moment and try again.');
     error.status = 429;
     throw error;
   }
