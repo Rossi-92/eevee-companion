@@ -39,23 +39,6 @@ async function playAudioBuffer(response) {
   });
 }
 
-function browserSpeak(text, mood) {
-  if (!('speechSynthesis' in window)) {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-GB';
-    utterance.pitch = mood === 'excited' ? 1.25 : mood === 'sleepy' ? 0.85 : 1.05;
-    utterance.rate = mood === 'excited' ? 1.08 : mood === 'sleepy' ? 0.9 : 1;
-    utterance.onend = () => { currentUtterance = null; resolve(); };
-    utterance.onerror = () => { currentUtterance = null; resolve(); };
-    currentUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
-  });
-}
-
 export async function speak(text, mood, handlers = {}) {
   stopSpeaking();
 
@@ -75,14 +58,8 @@ export async function speak(text, mood, handlers = {}) {
       return await playAudioBuffer(result);
     }
 
-    if (result?.provider || result?.reason || result?.message) {
-      console.warn(
-        `[voice] Falling back to browser TTS: provider=${result.provider || 'unknown'} reason=${result.reason || 'unknown'} message=${result.message || 'none'}`,
-      );
-    }
+    console.warn('[voice] Unexpected response format from backend TTS api.');
   } catch (error) {
-    console.warn(`[voice] Falling back to browser TTS after API error: ${error.message || error}`);
+    console.error(`[voice] ElevenLabs TTS failed: ${error.message || error}`);
   }
-
-  return browserSpeak(text, mood);
 }
